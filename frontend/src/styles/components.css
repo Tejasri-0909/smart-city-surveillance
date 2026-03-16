@@ -936,3 +936,259 @@
     grid-template-columns: 1fr;
   }
 }
+/* Enhanced Dashboard Styles for Map Integration */
+.stat-card.map-stat {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.stat-card.map-stat:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+  border-color: #00d4ff;
+}
+
+.stat-action {
+  font-size: 10px;
+  color: #00d4ff;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.section-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #2a2a3e;
+}
+
+/* Enhanced Camera Grid for Alert States */
+.camera-card.map-alert {
+  border-color: #ff4444;
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+  animation: mapAlertPulse 2s infinite;
+}
+
+@keyframes mapAlertPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.7);
+  }
+}
+
+/* Real-time Update Indicators */
+.update-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00ff88;
+  animation: pulse 2s infinite;
+}
+
+.update-indicator.alert {
+  background: #ff4444;
+}
+
+/* Enhanced Notification Styles */
+.notification-banner {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: linear-gradient(135deg, #ff4444 0%, #cc3333 100%);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  animation: slideInRight 0.3s ease;
+  max-width: 350px;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.notification-banner.success {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+  color: #000;
+}
+
+.notification-banner.warning {
+  background: linear-gradient(135deg, #ffaa00 0%, #cc8800 100%);
+}
+
+/* Map Integration Styles */
+.map-preview {
+  width: 100%;
+  height: 200px;
+  background: #000;
+  border-radius: 8px;
+  border: 1px solid #2a2a3e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 14px;
+  margin: 15px 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.map-preview:hover {
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
+
+.map-preview-content {
+  text-align: center;
+}
+
+.map-preview-content svg {
+  margin-bottom: 10px;
+}
+
+/* Enhanced Alert Panel for Map Context */
+.alert-item.map-context {
+  border-left-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.alert-location-link {
+  color: #00d4ff;
+  text-decoration: none;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.alert-location-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Performance Optimizations */
+.dashboard-section {
+  will-change: transform;
+}
+
+.camera-card {
+  will-change: transform, box-shadow;
+}
+
+/* Loading States for Real-time Updates */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.loading-pulse {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #00d4ff;
+  animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%, 100% { 
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% { 
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+/* Connection Status Indicator */
+.connection-status {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.connection-status.connected {
+  background: rgba(0, 255, 136, 0.2);
+  border: 1px solid #00ff88;
+  color: #00ff88;
+}
+
+.connection-status.disconnected {
+  background: rgba(255, 68, 68, 0.2);
+  border: 1px solid #ff4444;
+  color: #ff4444;
+}
+
+.connection-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s infinite;
+}
+
+/* Responsive Enhancements */
+@media (max-width: 1024px) {
+  .section-actions {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .section-actions .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .notification-banner {
+    top: 70px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+  
+  .connection-status {
+    bottom: 10px;
+    right: 10px;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  
+  .stat-card.map-stat .stat-action {
+    display: none;
+  }
+}

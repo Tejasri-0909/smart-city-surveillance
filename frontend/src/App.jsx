@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import Dashboard from './pages/Dashboard';
 import LiveMonitoring from './pages/LiveMonitoring';
+import CityMap from './pages/CityMap';
 import VideoUpload from './pages/VideoUpload';
 import Incidents from './pages/Incidents';
 import CameraManagement from './pages/CameraManagement';
@@ -12,6 +13,7 @@ import Settings from './pages/Settings';
 import { AlertProvider } from './context/AlertContext';
 import './App.css';
 import './styles/components.css';
+import './styles/map.css';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -28,6 +30,7 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/live-monitoring" element={<LiveMonitoring />} />
+                <Route path="/city-map" element={<CityMap />} />
                 <Route path="/video-upload" element={<VideoUpload />} />
                 <Route path="/incidents" element={<Incidents />} />
                 <Route path="/camera-management" element={<CameraManagement />} />

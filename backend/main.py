@@ -5,6 +5,7 @@ from routes.incident_routes import router as incident_router
 from routes.realtime_routes import router as realtime_router
 from routes.video_routes import router as video_router
 from routes.analytics_routes import router as analytics_router
+from routes.map_routes import router as map_router
 from database import db
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,6 +25,7 @@ app.include_router(incident_router, prefix="/incidents", tags=["Incidents"])
 app.include_router(realtime_router, prefix="/realtime", tags=["Real-time"])
 app.include_router(video_router, prefix="/video", tags=["Video Analysis"])
 app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
+app.include_router(map_router, prefix="/map", tags=["Map Data"])
 
 @app.get("/", tags=["System"])
 def home():

@@ -6,7 +6,8 @@ import {
   AlertTriangle, 
   Settings, 
   BarChart3,
-  MapPin 
+  MapPin,
+  Map
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -16,6 +17,7 @@ const Sidebar = () => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'live-monitoring', label: 'Live CCTV Monitoring', icon: Camera, path: '/live-monitoring' },
+    { id: 'city-map', label: 'City Surveillance Map', icon: Map, path: '/city-map' },
     { id: 'video-upload', label: 'Video Upload Analysis', icon: Upload, path: '/video-upload' },
     { id: 'incidents', label: 'Incidents', icon: AlertTriangle, path: '/incidents' },
     { id: 'camera-management', label: 'Camera Management', icon: MapPin, path: '/camera-management' },
