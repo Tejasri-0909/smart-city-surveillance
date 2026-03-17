@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: smart-city-surveillance-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: MONGO_URL
+        value: mongodb+srv://admin:Admin1234@cluster0.xkdu0rp.mongodb.net/smart_city_surveillance?retryWrites=true&w=majority
+      - key: JWT_SECRET
+        value: your-super-secret-jwt-key-here-change-in-production
+      - key: PYTHON_VERSION
+        value: 3.12.2

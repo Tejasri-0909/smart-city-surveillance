@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAlert } from '../context/AlertContext';
 import { isFallbackMode } from '../config/api';
 
@@ -27,45 +26,50 @@ const DeploymentStatus = () => {
     }
   };
 
+  const pulseStyle = connectionStatus === 'connecting' ? {
+    animation: 'pulse 2s infinite'
+  } : {};
+
   return (
-    <div style={{
-      position: 'fixed',
-      top: '10px',
-      right: '10px',
-      background: 'rgba(0, 0, 0, 0.8)',
-      color: 'white',
-      padding: '8px 12px',
-      borderRadius: '6px',
-      fontSize: '12px',
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
-    }}>
-      <div style={{
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        backgroundColor: getStatusColor(),
-        animation: connectionStatus === 'connecting' ? 'pulse 2s infinite' : 'none'
-      }} />
-      <span>{getStatusText()}</span>
-      {connectionAttempts > 0 && (
-        <span style={{ opacity: 0.7 }}>
-          (Attempt {connectionAttempts})
-        </span>
-      )}
-      <div style={{ fontSize: '10px', opacity: 0.6 }}>
-        {isFallbackMode() ? '📱 Offline Mode' : '🚀 Production (Render)'}
-      </div>
-      
-      <style jsx>{`
+    <>
+      <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
         }
       `}</style>
-    </div>
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <div style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          backgroundColor: getStatusColor(),
+          ...pulseStyle
+        }} />
+        <span>{getStatusText()}</span>
+        {connectionAttempts > 0 && (
+          <span style={{ opacity: 0.7 }}>
+            (Attempt {connectionAttempts})
+          </span>
+        )}
+        <div style={{ fontSize: '10px', opacity: 0.6 }}>
+          {isFallbackMode() ? '📱 Offline Mode' : '🚀 Production (Render)'}
+        </div>
+      </div>
+    </>
   );
 };
 

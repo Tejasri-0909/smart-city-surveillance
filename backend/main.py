@@ -4,13 +4,7 @@ from routes.auth_routes import router as auth_router
 from routes.camera_routes import router as camera_router
 from routes.incident_routes import router as incident_router
 from routes.realtime_routes import router as realtime_router
-from routes.video_routes import router as video_router
-from routes.analytics_routes import router as analytics_router
-from routes.map_routes import router as map_router
 from database import init_database, get_incident_stats
-from websocket_manager import websocket_manager, broadcast_alert
-from camera_processor import initialize_camera_processor, start_camera_processing, stop_camera_processing
-from camera_24_7_manager import initialize_24_7_cameras, stop_camera_24_7_monitoring
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
@@ -21,58 +15,43 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Alert callback for camera processor
-async def handle_ai_alert(incident_data):
-    """Handle AI-detected incidents"""
-    try:
-        # Store incident in database
-        from database import create_incident, create_alert
-        
-        # Create incident record
-        incident = await create_incident(incident_data)
-        logger.info(f"Incident created: {incident}")
-        
-        # Create alert record
-        alert_data = {
-            "camera_id": incident_data["camera_id"],
-            "incident_type": incident_data["incident_type"],
-            "location": incident_data["location"],
-            "message": incident_data.get("message", f"{incident_data['incident_type']} detected at {incident_data['location']}"),
-            "severity": incident_data["severity"],
-            "timestamp": incident_data["timestamp"]
-        }
-        alert = await create_alert(alert_data)
-        
-        # Broadcast alert via WebSocket
-        await broadcast_alert(alert_data)
-        logger.info(f"Alert broadcasted: {alert_data}")
-        
-    except Exception as e:
-        logger.error(f"Error handling AI alert: {e}")
+# Simple WebSocket manager
+class SimpleWebSocketManager:
+    def __init__(self):
+        self.active_connections = []
+    
+    async def connect(self, websocket: WebSocket):
+        self.active_connections.append(websocket)
+    
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+    
+    def get_connection_count(self):
+        return len(self.active_connections)
+    
+    async def broadcast(self, message: dict):
+        if self.active_connections:
+            for connection in self.active_connections.copy():
+                try:
+                    await connection.send_text(json.dumps(message))
+                except:
+                    self.disconnect(connection)
 
-# Initialize camera processor with alert callback
-camera_processor = initialize_camera_processor(handle_ai_alert)
+websocket_manager = SimpleWebSocketManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager for 24/7 operation"""
+    """Application lifespan manager"""
     # Startup
     try:
-        logger.info("🚀 Starting Smart City Surveillance System (24/7 Mode)")
+        logger.info("🚀 Starting Smart City Surveillance System")
         
         # Initialize database
         await init_database()
         logger.info("✅ Database initialized")
         
-        # Initialize 24/7 camera system
-        await initialize_24_7_cameras()
-        logger.info("✅ 24/7 Camera system initialized")
-        
-        # Start camera processing
-        start_camera_processing()
-        logger.info("✅ Camera processing started")
-        
-        logger.info("🌟 System ready for 24/7 operation")
+        logger.info("🌟 System ready")
         
     except Exception as e:
         logger.error(f"❌ Startup error: {e}")
@@ -82,8 +61,6 @@ async def lifespan(app: FastAPI):
     # Shutdown
     try:
         logger.info("🛑 Shutting down system...")
-        stop_camera_processing()
-        stop_camera_24_7_monitoring()
         logger.info("✅ System shutdown complete")
     except Exception as e:
         logger.error(f"❌ Shutdown error: {e}")
@@ -102,10 +79,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Improved WebSocket endpoint for 24/7 operation
+# WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Robust WebSocket endpoint for 24/7 operation"""
+    """WebSocket endpoint for real-time communication"""
     client_id = f"client_{datetime.now().timestamp()}"
     
     try:
@@ -119,15 +96,13 @@ async def websocket_endpoint(websocket: WebSocket):
         welcome_msg = {
             "type": "connection",
             "status": "connected",
-            "message": "Connected to Smart City Surveillance 24/7",
+            "message": "Connected to Smart City Surveillance",
             "timestamp": datetime.now().isoformat(),
             "client_id": client_id
         }
         await websocket.send_text(json.dumps(welcome_msg))
         
-        # Keep connection alive with heartbeat
-        last_ping = datetime.now()
-        
+        # Keep connection alive
         while True:
             try:
                 # Wait for message with timeout
@@ -145,7 +120,6 @@ async def websocket_endpoint(websocket: WebSocket):
                             "client_id": client_id
                         }
                         await websocket.send_text(json.dumps(pong_msg))
-                        last_ping = datetime.now()
                         
                     elif msg_type == "heartbeat":
                         # Respond to heartbeat
@@ -156,36 +130,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         }
                         await websocket.send_text(json.dumps(heartbeat_msg))
                         
-                    else:
-                        # Echo other messages
-                        echo_msg = {
-                            "type": "echo",
-                            "original_message": message,
-                            "timestamp": datetime.now().isoformat()
-                        }
-                        await websocket.send_text(json.dumps(echo_msg))
-                        
                 except json.JSONDecodeError:
                     # Handle non-JSON messages
                     error_msg = {
                         "type": "error",
                         "message": "Invalid JSON format",
-                        "received": data,
                         "timestamp": datetime.now().isoformat()
                     }
                     await websocket.send_text(json.dumps(error_msg))
                     
             except asyncio.TimeoutError:
                 # Send heartbeat if no message received
-                now = datetime.now()
-                if (now - last_ping).seconds > 60:  # Send heartbeat every minute
-                    heartbeat_msg = {
-                        "type": "heartbeat",
-                        "timestamp": now.isoformat(),
-                        "status": "alive"
-                    }
-                    await websocket.send_text(json.dumps(heartbeat_msg))
-                    last_ping = now
+                heartbeat_msg = {
+                    "type": "heartbeat",
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "alive"
+                }
+                await websocket.send_text(json.dumps(heartbeat_msg))
                 continue
                 
             except WebSocketDisconnect:
@@ -200,14 +161,30 @@ async def websocket_endpoint(websocket: WebSocket):
         websocket_manager.disconnect(websocket)
         logger.info(f"🔌 WebSocket client {client_id} disconnected. Total: {websocket_manager.get_connection_count()}")
 
-# Include routers
+# Include core routers only
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(camera_router, prefix="/cameras", tags=["Cameras"])
 app.include_router(incident_router, prefix="/incidents", tags=["Incidents"])
 app.include_router(realtime_router, prefix="/realtime", tags=["Real-time"])
-app.include_router(video_router, prefix="/video", tags=["Video Analysis"])
-app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
-app.include_router(map_router, prefix="/map", tags=["Map Data"])
+
+# Include optional routers with error handling
+try:
+    from routes.video_routes import router as video_router
+    app.include_router(video_router, prefix="/video", tags=["Video Analysis"])
+except ImportError:
+    logger.warning("Video routes not available")
+
+try:
+    from routes.analytics_routes import router as analytics_router
+    app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
+except ImportError:
+    logger.warning("Analytics routes not available")
+
+try:
+    from routes.map_routes import router as map_router
+    app.include_router(map_router, prefix="/map", tags=["Map Data"])
+except ImportError:
+    logger.warning("Map routes not available")
 
 @app.get("/", tags=["System"])
 def home():
@@ -219,10 +196,7 @@ def home():
             "Camera Management",
             "Incident Tracking", 
             "Real-time Alerts",
-            "Video Analysis",
-            "Analytics Dashboard",
-            "AI Detection",
-            "WebSocket Alerts"
+            "WebSocket Communication"
         ]
     }
 
@@ -231,32 +205,21 @@ async def health_check():
     """Health check endpoint"""
     try:
         stats = await get_incident_stats()
-        from websocket_manager import get_connection_count
-        from camera_processor import get_camera_status
         
         return {
             "status": "healthy",
             "database": "connected",
-            "websocket_connections": get_connection_count(),
-            "camera_status": get_camera_status(),
+            "websocket_connections": websocket_manager.get_connection_count(),
             "incident_stats": stats,
-            "timestamp": "2024-03-16T12:00:00Z"
+            "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
         logger.error(f"Health check error: {e}")
         return {
             "status": "error",
-            "error": str(e)
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
         }
-
-@app.get("/ai-status", tags=["System"])
-def ai_status():
-    """Get AI detection system status"""
-    try:
-        from ai_detection import get_detector_status
-        return get_detector_status()
-    except Exception as e:
-        return {"error": str(e), "status": "unavailable"}
 
 # Render deployment entry point
 if __name__ == "__main__":
