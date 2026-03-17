@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { generateAlert, generateIncidents } from '../utils/sampleData';
+import { API_CONFIG, getApiUrl, getWsUrl } from '../config/api';
 import axios from 'axios';
 
 const AlertContext = createContext();
@@ -32,7 +33,7 @@ export const AlertProvider = ({ children }) => {
   // Fetch incidents from backend
   const fetchIncidents = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/incidents?limit=10');
+      const response = await axios.get(getApiUrl('/incidents?limit=10'));
       const incidentData = response.data.incidents || [];
       
       // Process backend data and limit to 10 most recent incidents
@@ -54,7 +55,7 @@ export const AlertProvider = ({ children }) => {
       });
       
       setIncidents(processedIncidents);
-      console.log('✅ Incidents fetched and limited to:', processedIncidents.length);
+      console.log('✅ Incidents fetched from Render backend:', processedIncidents.length);
       
       // Log breakdown for debugging
       const breakdown = {
@@ -67,7 +68,7 @@ export const AlertProvider = ({ children }) => {
       console.log('📊 Incident breakdown:', breakdown);
       
     } catch (error) {
-      console.error('❌ Failed to fetch incidents:', error);
+      console.error('❌ Failed to fetch incidents from Render:', error);
       
       // Use minimal fallback data
       const sampleIncidents = [
@@ -118,16 +119,16 @@ export const AlertProvider = ({ children }) => {
     // even if WebSocket fails (fallback for API-only mode)
     const checkConnection = async () => {
       try {
-        const response = await axios.get('http://127.0.0.1:8000/incidents?limit=1');
+        const response = await axios.get(getApiUrl('/health'));
         if (response.status === 200) {
           // If WebSocket is not connected but API works, show as connected
           if (connectionStatus === 'connecting' || connectionStatus === 'error') {
-            console.log('📡 API working, using fallback connection mode');
+            console.log('📡 Render API working, using fallback connection mode');
             setConnectionStatus('connected');
           }
         }
       } catch (error) {
-        console.log('API check failed:', error.message);
+        console.log('Render API check failed:', error.message);
       }
     };
     
@@ -146,20 +147,20 @@ export const AlertProvider = ({ children }) => {
   // Test backend connectivity
   const testBackendConnection = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health', {
+      const response = await fetch(getApiUrl('/health'), {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
       
       if (response.ok) {
-        console.log('✅ Backend is running and healthy');
+        console.log('✅ Render backend is running and healthy');
         return true;
       } else {
-        console.error('❌ Backend health check failed:', response.status);
+        console.error('❌ Render backend health check failed:', response.status);
         return false;
       }
     } catch (error) {
-      console.error('❌ Backend connection failed:', error.message);
+      console.error('❌ Render backend connection failed:', error.message);
       return false;
     }
   };
@@ -174,15 +175,15 @@ export const AlertProvider = ({ children }) => {
       // First test if backend is running
       const backendHealthy = await testBackendConnection();
       if (!backendHealthy) {
-        console.error('Backend not available, retrying in 5 seconds...');
+        console.error('Render backend not available, retrying in 10 seconds...');
         setConnectionStatus('error');
-        reconnectTimer = setTimeout(connectWebSocket, 5000);
+        reconnectTimer = setTimeout(connectWebSocket, 10000);
         return;
       }
 
       try {
         setConnectionStatus('connecting');
-        const ws = new WebSocket('ws://localhost:8000/ws');
+        const ws = new WebSocket(getWsUrl('/ws'));
         
         // Set connection timeout
         connectionTimeout = setTimeout(() => {
@@ -194,7 +195,7 @@ export const AlertProvider = ({ children }) => {
         }, 10000); // 10 second timeout
         
         ws.onopen = () => {
-          console.log('✅ WebSocket connected successfully (24/7 mode)');
+          console.log('✅ WebSocket connected to Render backend (24/7 mode)');
           clearTimeout(connectionTimeout);
           setConnectionStatus('connected');
           setWebsocket(ws);
@@ -263,44 +264,44 @@ export const AlertProvider = ({ children }) => {
         };
         
         ws.onclose = (event) => {
-          console.log(`🔌 WebSocket disconnected: ${event.code} - ${event.reason}`);
+          console.log(`🔌 WebSocket disconnected from Render: ${event.code} - ${event.reason}`);
           clearTimeout(connectionTimeout);
           clearInterval(heartbeatInterval);
           setConnectionStatus('disconnected');
           setWebsocket(null);
           
-          // Only reconnect if it wasn't a manual close
-          if (event.code !== 1000 && connectionAttempts < 10) {
+          // Reconnect with exponential backoff for production stability
+          if (event.code !== 1000 && connectionAttempts < 20) {
             const attempts = connectionAttempts + 1;
             setConnectionAttempts(attempts);
-            const delay = Math.min(3000 * attempts, 30000); // Max 30 seconds
+            const delay = Math.min(5000 * attempts, 60000); // Max 60 seconds for production
             
-            console.log(`🔄 Reconnecting in ${delay/1000} seconds... (attempt ${attempts})`);
+            console.log(`🔄 Reconnecting to Render in ${delay/1000} seconds... (attempt ${attempts})`);
             reconnectTimer = setTimeout(connectWebSocket, delay);
           }
         };
         
         ws.onerror = (error) => {
-          console.error('❌ WebSocket error:', error);
+          console.error('❌ WebSocket error with Render backend:', error);
           clearTimeout(connectionTimeout);
           clearInterval(heartbeatInterval);
           setConnectionStatus('error');
         };
         
       } catch (error) {
-        console.error('❌ Failed to create WebSocket connection:', error);
+        console.error('❌ Failed to create WebSocket connection to Render:', error);
         setConnectionStatus('error');
         
         // Retry connection after delay
         const attempts = connectionAttempts + 1;
         setConnectionAttempts(attempts);
-        const delay = Math.min(5000 * attempts, 30000);
+        const delay = Math.min(10000 * attempts, 60000); // Longer delays for production
         reconnectTimer = setTimeout(connectWebSocket, delay);
       }
     };
 
-    // Start connection after a short delay
-    const initialDelay = setTimeout(connectWebSocket, 2000);
+    // Start connection after a short delay to allow Render backend to be ready
+    const initialDelay = setTimeout(connectWebSocket, 5000);
 
     // Cleanup on unmount
     return () => {
@@ -368,7 +369,7 @@ export const AlertProvider = ({ children }) => {
       }
 
       // Make API call to ensure persistence - handle both custom ID and MongoDB ObjectId
-      const response = await fetch(`http://localhost:8000/incidents/${incidentId}/status?status=${newStatus}`, {
+      const response = await fetch(getApiUrl(`/incidents/${incidentId}/status?status=${newStatus}`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

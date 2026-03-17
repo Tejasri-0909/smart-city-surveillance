@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, MapPin, Camera, Wifi, WifiOff } from 'lucide-react';
+import { getApiUrl } from '../config/api';
 import axios from 'axios';
 
 const CameraManagement = () => {
@@ -21,7 +22,7 @@ const CameraManagement = () => {
 
   const fetchCameras = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/cameras');
+      const response = await axios.get(getApiUrl('/cameras'));
       setCameras(response.data.cameras);
     } catch (error) {
       console.error('Error fetching cameras:', error);
@@ -54,13 +55,13 @@ const CameraManagement = () => {
     try {
       if (editingCamera) {
         // Update existing camera
-        const response = await axios.put(`http://127.0.0.1:8000/cameras/${editingCamera.camera_id}`, formData);
+        const response = await axios.put(getApiUrl(`/cameras/${editingCamera.camera_id}`), formData);
         setCameras(prev => prev.map(cam => 
           cam.camera_id === editingCamera.camera_id ? formData : cam
         ));
       } else {
         // Add new camera
-        const response = await axios.post('http://127.0.0.1:8000/cameras/register', formData);
+        const response = await axios.post(getApiUrl('/cameras/register'), formData);
         setCameras(prev => [...prev, formData]);
       }
       
@@ -88,7 +89,7 @@ const CameraManagement = () => {
   const handleDelete = async (cameraId) => {
     if (window.confirm('Are you sure you want to delete this camera?')) {
       try {
-        await axios.delete(`http://127.0.0.1:8000/cameras/${cameraId}`);
+        await axios.delete(getApiUrl(`/cameras/${cameraId}`));
         setCameras(prev => prev.filter(cam => cam.camera_id !== cameraId));
       } catch (error) {
         console.error('Error deleting camera:', error);
@@ -116,7 +117,7 @@ const CameraManagement = () => {
     const newStatus = camera.status === 'active' ? 'offline' : 'active';
     
     try {
-      await axios.patch(`http://127.0.0.1:8000/cameras/${cameraId}/status`, { status: newStatus });
+      await axios.patch(getApiUrl(`/cameras/${cameraId}/status`), { status: newStatus });
       setCameras(prev => prev.map(cam => 
         cam.camera_id === cameraId ? { ...cam, status: newStatus } : cam
       ));

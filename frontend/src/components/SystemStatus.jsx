@@ -4,6 +4,7 @@ import {
   CheckCircle, Clock, Server, Camera 
 } from 'lucide-react';
 import { useAlert } from '../context/AlertContext';
+import { getApiUrl } from '../config/api';
 
 const SystemStatus = () => {
   const [systemHealth, setSystemHealth] = useState({
@@ -23,7 +24,7 @@ const SystemStatus = () => {
   const checkSystemHealth = async () => {
     try {
       // Check backend health
-      const response = await fetch('http://localhost:8000/health');
+      const response = await fetch(getApiUrl('/health'));
       if (response.ok) {
         const data = await response.json();
         setSystemHealth({

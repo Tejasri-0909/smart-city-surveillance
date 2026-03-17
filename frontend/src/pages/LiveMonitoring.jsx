@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Camera, Grid, Maximize2, Play, Square, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CameraVideo from '../components/CameraVideo';
+import { getApiUrl } from '../config/api';
 import axios from 'axios';
 
 const LiveMonitoring = () => {
@@ -36,7 +37,7 @@ const LiveMonitoring = () => {
 
   const fetchCameras = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/cameras');
+      const response = await axios.get(getApiUrl('/cameras'));
       setCameras(response.data.cameras);
       if (response.data.cameras.length > 0 && !selectedCamera) {
         setSelectedCamera(response.data.cameras[0]);

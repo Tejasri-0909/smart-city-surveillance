@@ -6,6 +6,7 @@ import {
 import { useAlert } from '../context/AlertContext';
 import CameraVideo from '../components/CameraVideo';
 import SystemStatus from '../components/SystemStatus';
+import { getApiUrl } from '../config/api';
 
 const TestDashboard = () => {
   const [testResults, setTestResults] = useState({
@@ -28,7 +29,7 @@ const TestDashboard = () => {
 
     // Test 1: Backend Health
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await fetch(getApiUrl('/health'));
       if (response.ok) {
         setTestResults(prev => ({ ...prev, backend: 'passed' }));
       } else {
@@ -220,7 +221,7 @@ const TestDashboard = () => {
         <div className="info-grid">
           <div className="info-item">
             <Server size={16} />
-            <span>Backend: http://localhost:8000</span>
+            <span>Backend: https://smart-city-surveillance.onrender.com</span>
           </div>
           <div className="info-item">
             <Database size={16} />

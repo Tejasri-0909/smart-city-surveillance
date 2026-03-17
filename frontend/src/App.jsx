@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AlertProvider } from './context/AlertContext';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
+import DeploymentStatus from './components/DeploymentStatus';
 import Dashboard from './pages/Dashboard';
 import LiveMonitoring from './pages/LiveMonitoring';
 import CityMap from './pages/CityMap';
@@ -38,6 +39,7 @@ function App() {
     <AlertProvider>
       <Router>
         <div className="app">
+          <DeploymentStatus />
           <Sidebar onLogout={handleLogout} />
           <div className="main-content">
             <StatusBar />

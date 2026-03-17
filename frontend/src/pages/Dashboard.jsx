@@ -3,6 +3,7 @@ import { Camera, AlertTriangle, Activity, Map } from 'lucide-react';
 import { useAlert } from '../context/AlertContext';
 import { useNavigate } from 'react-router-dom';
 import SafeCameraGrid from '../components/SafeCameraGrid';
+import { getApiUrl } from '../config/api';
 import axios from 'axios';
 
 const Dashboard = () => {
@@ -38,7 +39,7 @@ const Dashboard = () => {
 
   const fetchCameraStats = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:8000/cameras");
+      const res = await axios.get(getApiUrl("/cameras"));
       const cameras = res.data.cameras || [];
       const activeCameras = cameras.filter(cam => cam.status === 'active').length;
       
