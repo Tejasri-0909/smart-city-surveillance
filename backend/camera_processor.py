@@ -3,7 +3,6 @@ Camera Stream Processor for Smart City Surveillance System
 Processes video feeds and detects incidents using AI
 """
 
-import cv2
 import asyncio
 import logging
 from typing import Dict, Optional, Callable
@@ -12,11 +11,21 @@ import threading
 import time
 from pathlib import Path
 
-from ai_detection import detect_threats_in_frame
+# Try to import AI dependencies, handle gracefully if missing
+try:
+    import cv2
+    from ai_detection import detect_threats_in_frame
+    AI_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("✅ AI detection modules loaded successfully")
+except ImportError as e:
+    AI_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(f"⚠️ AI detection not available: {e}")
+    logger.info("📱 Running in simulation mode without AI processing")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class CameraProcessor:
     def __init__(self, alert_callback: Optional[Callable] = None):

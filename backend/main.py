@@ -257,3 +257,20 @@ def ai_status():
         return get_detector_status()
     except Exception as e:
         return {"error": str(e), "status": "unavailable"}
+
+# Render deployment entry point
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    
+    # Get port from environment (Render sets this)
+    port = int(os.environ.get("PORT", 8000))
+    
+    # Run the application
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        reload=False  # Disable reload for production
+    )

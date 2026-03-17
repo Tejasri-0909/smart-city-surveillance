@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: smart-city-surveillance-backend
+    env: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: |
+      pip install --upgrade pip setuptools wheel
+      pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MONGO_URL
+        value: mongodb+srv://admin:Admin1234@cluster0.xkdu0rp.mongodb.net/
+      - key: JWT_SECRET
+        value: supersecretkey-render-deployment-2024
+      - key: API_BASE_URL
+        value: https://smart-city-surveillance.onrender.com
+      - key: PORT
+        generateValue: true
+    healthCheckPath: /health
+    
+  - type: static
+    name: smart-city-surveillance-frontend
+    buildCommand: |
+      cd frontend
+      npm ci
+      npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
