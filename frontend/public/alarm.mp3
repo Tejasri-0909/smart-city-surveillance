@@ -1,0 +1,9 @@
+# This is a placeholder for the alarm sound file
+# In a real implementation, this would be an actual MP3 audio file
+# You can download a suitable alarm sound from:
+# - https://freesound.org/
+# - https://www.zapsplat.com/
+# - Or record your own alarm sound
+# 
+# The file should be named "alarm.mp3" and placed in this directory
+# Recommended: Short (2-3 second) alert/alarm sound

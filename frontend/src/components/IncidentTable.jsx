@@ -1,41 +1,11 @@
 import { useState } from 'react';
 import { Eye, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const IncidentTable = ({ incidents = [] }) => {
+const IncidentTable = ({ incidents = [], onIncidentUpdate }) => {
   const [selectedIncident, setSelectedIncident] = useState(null);
-
-  // Sample incidents if none provided
-  const defaultIncidents = [
-    {
-      id: 1,
-      camera_id: 'CAM002',
-      incident_type: 'Weapon Detected',
-      location: 'Metro Station',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      status: 'active',
-      severity: 'high'
-    },
-    {
-      id: 2,
-      camera_id: 'CAM001',
-      incident_type: 'Suspicious Activity',
-      location: 'City Center',
-      timestamp: new Date(Date.now() - 600000).toISOString(),
-      status: 'resolved',
-      severity: 'medium'
-    },
-    {
-      id: 3,
-      camera_id: 'CAM003',
-      incident_type: 'Fire Detected',
-      location: 'Airport Gate',
-      timestamp: new Date(Date.now() - 900000).toISOString(),
-      status: 'false-alarm',
-      severity: 'critical'
-    }
-  ];
-
-  const displayIncidents = incidents.length > 0 ? incidents : defaultIncidents;
+  const [updating, setUpdating] = useState(false);
+  const navigate = useNavigate();
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -80,6 +50,60 @@ const IncidentTable = ({ incidents = [] }) => {
     setSelectedIncident(incident);
   };
 
+  const handleViewCameraFeed = (cameraId) => {
+    // Navigate to live monitoring with selected camera
+    navigate(`/live-monitoring?camera=${cameraId}`);
+    setSelectedIncident(null);
+  };
+
+  const updateIncidentStatus = async (incidentId, newStatus) => {
+    setUpdating(true);
+    try {
+      // For demo purposes, simulate the update without making API call
+      // In production, this would make the actual API call
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update local state
+      if (onIncidentUpdate) {
+        onIncidentUpdate(incidentId, newStatus);
+      }
+      
+      // Close modal
+      setSelectedIncident(null);
+      
+      // Show success notification
+      showNotification(`Incident marked as ${newStatus.replace('-', ' ')}`, 'success');
+      
+    } catch (error) {
+      console.error('Error updating incident status:', error);
+      showNotification('Failed to update incident status', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const showNotification = (message, type) => {
+    // Create temporary notification
+    const notification = document.createElement('div');
+    notification.className = `notification-banner ${type}`;
+    notification.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span>${message}</span>
+      </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
+        document.body.removeChild(notification);
+      }
+    }, 3000);
+  };
+
   return (
     <div className="incident-table-container">
       <div className="table-wrapper">
@@ -96,7 +120,7 @@ const IncidentTable = ({ incidents = [] }) => {
             </tr>
           </thead>
           <tbody>
-            {displayIncidents.map((incident, index) => (
+            {incidents.map((incident, index) => (
               <tr key={incident.id || index}>
                 <td className="camera-id">{incident.camera_id}</td>
                 <td className="incident-type">{incident.incident_type}</td>
@@ -126,7 +150,7 @@ const IncidentTable = ({ incidents = [] }) => {
         </table>
       </div>
 
-      {displayIncidents.length === 0 && (
+      {incidents.length === 0 && (
         <div className="no-incidents">
           <AlertTriangle size={48} className="no-incidents-icon" />
           <p>No incidents recorded</p>
@@ -178,9 +202,33 @@ const IncidentTable = ({ incidents = [] }) => {
               </div>
               
               <div className="incident-actions">
-                <button className="btn btn-success">Mark as Resolved</button>
-                <button className="btn btn-danger">Mark as False Alarm</button>
-                <button className="btn btn-primary">View Camera Feed</button>
+                {selectedIncident.status === 'active' && (
+                  <>
+                    <button 
+                      className="btn btn-success"
+                      onClick={() => updateIncidentStatus(selectedIncident.id, 'resolved')}
+                      disabled={updating}
+                    >
+                      <CheckCircle size={16} />
+                      {updating ? 'Updating...' : 'Mark as Resolved'}
+                    </button>
+                    <button 
+                      className="btn btn-danger"
+                      onClick={() => updateIncidentStatus(selectedIncident.id, 'false-alarm')}
+                      disabled={updating}
+                    >
+                      <XCircle size={16} />
+                      {updating ? 'Updating...' : 'Mark as False Alarm'}
+                    </button>
+                  </>
+                )}
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => handleViewCameraFeed(selectedIncident.camera_id)}
+                >
+                  <Eye size={16} />
+                  View Camera Feed
+                </button>
               </div>
             </div>
           </div>

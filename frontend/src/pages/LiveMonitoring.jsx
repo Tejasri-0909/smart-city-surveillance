@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Camera, Grid, Maximize2, Play, Square } from 'lucide-react';
+import { Camera, Grid, Maximize2, Play, Square, ArrowLeft } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import CameraVideo from '../components/CameraVideo';
 import axios from 'axios';
 
 const LiveMonitoring = () => {
@@ -7,16 +9,36 @@ const LiveMonitoring = () => {
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'single'
   const [isRecording, setIsRecording] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleBackToMap = () => {
+    navigate('/city-map');
+  };
 
   useEffect(() => {
     fetchCameras();
   }, []);
 
+  useEffect(() => {
+    // Check if camera is specified in URL params
+    const urlParams = new URLSearchParams(location.search);
+    const cameraParam = urlParams.get('camera');
+    
+    if (cameraParam && cameras.length > 0) {
+      const camera = cameras.find(cam => cam.camera_id === cameraParam);
+      if (camera) {
+        setSelectedCamera(camera);
+        setViewMode('single');
+      }
+    }
+  }, [location.search, cameras]);
+
   const fetchCameras = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8000/cameras');
       setCameras(response.data.cameras);
-      if (response.data.cameras.length > 0) {
+      if (response.data.cameras.length > 0 && !selectedCamera) {
         setSelectedCamera(response.data.cameras[0]);
       }
     } catch (error) {
@@ -27,13 +49,16 @@ const LiveMonitoring = () => {
         { camera_id: 'CAM002', location: 'Metro Station', status: 'active' },
         { camera_id: 'CAM003', location: 'Airport Gate', status: 'active' },
         { camera_id: 'CAM004', location: 'Shopping Mall', status: 'active' },
-        { camera_id: 'CAM005', location: 'Park Entrance', status: 'offline' },
+        { camera_id: 'CAM005', location: 'Park Entrance', status: 'active' },
         { camera_id: 'CAM006', location: 'Highway Bridge', status: 'active' }
       ];
       setCameras(defaultCameras);
-      setSelectedCamera(defaultCameras[0]);
+      if (!selectedCamera) {
+        setSelectedCamera(defaultCameras[0]);
+      }
     }
   };
+
   const handleCameraSelect = (camera) => {
     setSelectedCamera(camera);
   };
@@ -43,33 +68,24 @@ const LiveMonitoring = () => {
   };
 
   const renderCameraFeed = (camera, isLarge = false) => {
+    const cameraIndex = parseInt(camera.camera_id.replace('CAM00', ''));
+    
     return (
       <div className={`camera-feed ${isLarge ? 'large' : ''}`}>
         <div className="feed-header">
           <span className="camera-label">{camera.camera_id} - {camera.location}</span>
           <div className="feed-status">
-            <div className={`status-dot ${camera.status === 'offline' ? 'offline' : ''}`}></div>
+            <div className={`status-dot ${camera.status === 'offline' ? 'offline' : 'active'}`}></div>
             <span>{camera.status?.toUpperCase()}</span>
           </div>
         </div>
         
         <div className="video-container">
-          <div className="video-placeholder">
-            <div className="feed-simulation">
-              <div className="scan-lines"></div>
-              <div className="static-noise"></div>
-              {camera.status === 'active' ? (
-                <div className="live-indicator">
-                  <div className="live-dot"></div>
-                  <span>LIVE</span>
-                </div>
-              ) : (
-                <div className="offline-indicator">
-                  <span>OFFLINE</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <CameraVideo 
+            cameraId={camera.camera_id}
+            cameraName={camera.location}
+            index={cameraIndex}
+          />
         </div>
         
         {isLarge && (
@@ -98,7 +114,20 @@ const LiveMonitoring = () => {
   return (
     <div className="live-monitoring">
       <div className="monitoring-header">
-        <h2>Live CCTV Monitoring</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button 
+            className="btn btn-secondary"
+            onClick={handleBackToMap}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <ArrowLeft size={16} />
+            Back to Map
+          </button>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Camera size={24} />
+            Live CCTV Monitoring
+          </h2>
+        </div>
         <div className="view-controls">
           <button 
             className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
@@ -145,7 +174,7 @@ const LiveMonitoring = () => {
                       <span className="camera-id">{camera.camera_id}</span>
                       <span className="camera-location">{camera.location}</span>
                     </div>
-                    <div className={`status-indicator ${camera.status === 'offline' ? 'offline' : ''}`}></div>
+                    <div className={`status-indicator ${camera.status === 'offline' ? 'offline' : 'active'}`}></div>
                   </div>
                 ))}
               </div>

@@ -2,15 +2,16 @@
 """
 Seed the database with sample cameras and incidents for testing
 """
+import asyncio
 from database import cameras_collection, incidents_collection
 from datetime import datetime, timedelta
 import random
 
-def seed_cameras():
+async def seed_cameras():
     """Add sample cameras to the database"""
     
     # Clear existing cameras
-    cameras_collection.delete_many({})
+    await cameras_collection.delete_many({})
     
     sample_cameras = [
         {
@@ -81,20 +82,23 @@ def seed_cameras():
         }
     ]
     
-    cameras_collection.insert_many(sample_cameras)
+    await cameras_collection.insert_many(sample_cameras)
     print(f"✅ Inserted {len(sample_cameras)} cameras")
 
-def seed_incidents():
+async def seed_incidents():
     """Add sample incidents to the database"""
     
     # Clear existing incidents
-    incidents_collection.delete_many({})
+    await incidents_collection.delete_many({})
     
     incident_types = ["Weapon Detected", "Suspicious Activity", "Fire Detected", "Unauthorized Access", "Vandalism"]
     severities = ["critical", "high", "medium", "low"]
     statuses = ["active", "resolved", "false-alarm", "investigating"]
     
-    cameras = list(cameras_collection.find({}, {"_id": 0}))
+    # Get cameras from database
+    cameras = []
+    async for camera in cameras_collection.find({}, {"_id": 0}):
+        cameras.append(camera)
     
     sample_incidents = []
     
@@ -127,22 +131,22 @@ def seed_incidents():
         
         sample_incidents.append(incident)
     
-    incidents_collection.insert_many(sample_incidents)
+    await incidents_collection.insert_many(sample_incidents)
     print(f"✅ Inserted {len(sample_incidents)} incidents")
 
-def main():
+async def main():
     print("🌱 Seeding Smart City Surveillance Database")
     print("=" * 50)
     
-    seed_cameras()
-    seed_incidents()
+    await seed_cameras()
+    await seed_incidents()
     
     print("\n" + "=" * 50)
     print("🎯 Database seeding complete!")
     print("\n📊 Summary:")
-    print(f"   Cameras: {cameras_collection.count_documents({})}")
-    print(f"   Incidents: {incidents_collection.count_documents({})}")
+    print(f"   Cameras: {await cameras_collection.count_documents({})}")
+    print(f"   Incidents: {await incidents_collection.count_documents({})}")
     print("\n🚀 Ready to test the Smart City Map!")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

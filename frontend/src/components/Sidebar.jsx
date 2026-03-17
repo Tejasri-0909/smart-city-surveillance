@@ -7,10 +7,11 @@ import {
   Settings, 
   BarChart3,
   MapPin,
-  Map
+  Map,
+  LogOut
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -27,6 +28,12 @@ const Sidebar = () => {
 
   const handleNavigation = (path) => {
     navigate(path);
+  };
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   return (
@@ -53,6 +60,11 @@ const Sidebar = () => {
             </div>
           );
         })}
+        
+        <div className="nav-item logout-item" onClick={handleLogout}>
+          <LogOut size={20} />
+          <span>Logout</span>
+        </div>
       </nav>
     </div>
   );

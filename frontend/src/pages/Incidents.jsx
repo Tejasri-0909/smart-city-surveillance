@@ -1,106 +1,49 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, Download, Eye, CheckCircle, XCircle } from 'lucide-react';
 import IncidentTable from '../components/IncidentTable';
-import axios from 'axios';
+import { useAlert } from '../context/AlertContext';
 
 const Incidents = () => {
-  const [incidents, setIncidents] = useState([]);
+  const { incidents, updateIncidentStatus } = useAlert();
   const [filteredIncidents, setFilteredIncidents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchIncidents();
-  }, []);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     filterIncidents();
   }, [incidents, searchTerm, statusFilter, typeFilter]);
 
-  const fetchIncidents = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/incidents');
-      setIncidents(response.data.incidents);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching incidents:', error);
-      // Use sample data for demo
-      const sampleIncidents = [
-        {
-          id: 1,
-          camera_id: 'CAM002',
-          incident_type: 'Weapon Detected',
-          location: 'Metro Station',
-          timestamp: new Date(Date.now() - 300000).toISOString(),
-          status: 'active',
-          severity: 'high',
-          description: 'Suspicious weapon detected in crowd'
-        },
-        {
-          id: 2,
-          camera_id: 'CAM001',
-          incident_type: 'Suspicious Activity',
-          location: 'City Center',
-          timestamp: new Date(Date.now() - 600000).toISOString(),
-          status: 'resolved',
-          severity: 'medium',
-          description: 'Unusual behavior pattern detected'
-        },
-        {
-          id: 3,
-          camera_id: 'CAM003',
-          incident_type: 'Fire Detected',
-          location: 'Airport Gate',
-          timestamp: new Date(Date.now() - 900000).toISOString(),
-          status: 'false-alarm',
-          severity: 'critical',
-          description: 'Heat signature detected, later confirmed as false alarm'
-        }
-      ];
-      setIncidents(sampleIncidents);
-      setLoading(false);
-    }
-  };
-
   const filterIncidents = () => {
-    let filtered = incidents;
+    let filtered = [...incidents];
 
+    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(incident =>
-        incident.camera_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         incident.incident_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        incident.location.toLowerCase().includes(searchTerm.toLowerCase())
+        incident.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        incident.camera_id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
+    // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(incident => incident.status === statusFilter);
     }
 
+    // Type filter
     if (typeFilter !== 'all') {
-      filtered = filtered.filter(incident => 
-        incident.incident_type.toLowerCase().includes(typeFilter.toLowerCase())
-      );
+      filtered = filtered.filter(incident => incident.incident_type === typeFilter);
     }
 
     setFilteredIncidents(filtered);
   };
 
-  const updateIncidentStatus = async (incidentId, newStatus) => {
-    try {
-      // In a real app, this would make an API call
-      setIncidents(prev => 
-        prev.map(incident => 
-          incident.id === incidentId 
-            ? { ...incident, status: newStatus }
-            : incident
-        )
-      );
-    } catch (error) {
-      console.error('Error updating incident status:', error);
-    }
+  const handleIncidentUpdate = (incidentId, newStatus) => {
+    // Update the incident status in the AlertContext
+    updateIncidentStatus(incidentId, newStatus);
+    console.log(`Incident ${incidentId} status updated to: ${newStatus}`);
   };
 
   const exportIncidents = () => {
@@ -210,9 +153,11 @@ const Incidents = () => {
             onChange={(e) => setTypeFilter(e.target.value)}
           >
             <option value="all">All Types</option>
-            <option value="weapon">Weapon Detected</option>
-            <option value="fire">Fire Detected</option>
-            <option value="suspicious">Suspicious Activity</option>
+            <option value="Weapon Detected">Weapon Detected</option>
+            <option value="Fire Detected">Fire Detected</option>
+            <option value="Suspicious Activity">Suspicious Activity</option>
+            <option value="Unauthorized Access">Unauthorized Access</option>
+            <option value="Vandalism">Vandalism</option>
           </select>
         </div>
       </div>
@@ -221,7 +166,7 @@ const Incidents = () => {
       <div className="incidents-table-section">
         <IncidentTable 
           incidents={filteredIncidents}
-          onStatusUpdate={updateIncidentStatus}
+          onIncidentUpdate={handleIncidentUpdate}
         />
       </div>
     </div>

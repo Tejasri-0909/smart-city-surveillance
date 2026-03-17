@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { generateAlert, generateIncidents } from '../utils/sampleData';
+import axios from 'axios';
 
 const AlertContext = createContext();
 
@@ -12,123 +14,306 @@ export const useAlert = () => {
 
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
-  const [socket, setSocket] = useState(null);
-  const [cameraStatuses, setCameraStatuses] = useState(new Map());
   const [incidents, setIncidents] = useState([]);
+  const [websocket, setWebsocket] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
 
+  // Alarm sound setup
+  const alarmSound = new Audio("/alarm.mp3");
+  
+  const playAlarm = () => {
+    alarmSound.currentTime = 0;
+    alarmSound.play().catch((error) => {
+      console.warn('Could not play alarm sound:', error);
+    });
+  };
+
+  // Fetch incidents from backend
+  const fetchIncidents = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/incidents?limit=10');
+      const incidentData = response.data.incidents || [];
+      
+      // Process backend data and limit to 10 most recent incidents
+      const processedIncidents = incidentData.slice(0, 10).map(incident => {
+        const incidentId = incident.id || incident._id;
+        
+        return {
+          ...incident,
+          id: incidentId,
+          status: incident.status || 'active',
+          severity: incident.severity || 'medium',
+          timestamp: incident.timestamp || incident.created_at || new Date().toISOString(),
+          latitude: incident.latitude || 40.7128,
+          longitude: incident.longitude || -74.006,
+          camera_id: incident.camera_id || 'CAM001',
+          incident_type: incident.incident_type || 'Unknown',
+          location: incident.location || 'Unknown Location'
+        };
+      });
+      
+      setIncidents(processedIncidents);
+      console.log('✅ Incidents fetched and limited to:', processedIncidents.length);
+      
+      // Log breakdown for debugging
+      const breakdown = {
+        total: processedIncidents.length,
+        active: processedIncidents.filter(i => i.status === 'active').length,
+        resolved: processedIncidents.filter(i => i.status === 'resolved').length,
+        falseAlarm: processedIncidents.filter(i => i.status === 'false-alarm').length,
+      };
+      
+      console.log('📊 Incident breakdown:', breakdown);
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch incidents:', error);
+      
+      // Use minimal fallback data
+      const sampleIncidents = [
+        {
+          id: 'fallback-1',
+          camera_id: "CAM002",
+          location: "Metro Station",
+          latitude: 40.7589,
+          longitude: -73.9851,
+          incident_type: "Suspicious Activity",
+          severity: "medium",
+          status: "active",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: 'fallback-2',
+          camera_id: "CAM004",
+          location: "Shopping Mall",
+          latitude: 40.7505,
+          longitude: -73.9934,
+          incident_type: "Weapon Detected",
+          severity: "critical",
+          status: "active",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: 'fallback-3',
+          camera_id: "CAM001",
+          location: "City Center",
+          latitude: 40.7128,
+          longitude: -74.006,
+          incident_type: "Fire Detected",
+          severity: "high",
+          status: "resolved",
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+        }
+      ];
+      setIncidents(sampleIncidents);
+      console.log('⚠️ Using fallback sample data:', sampleIncidents.length, 'incidents');
+    }
+  };
+
+  // Initial data fetch and connection setup
   useEffect(() => {
-    // Initialize WebSocket connection
-    const ws = new WebSocket('ws://localhost:8000/realtime/alerts');
+    fetchIncidents();
     
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setSocket(ws);
-    };
-
-    ws.onmessage = (event) => {
+    // If incidents fetch successfully, consider the system connected
+    // even if WebSocket fails (fallback for API-only mode)
+    const checkConnection = async () => {
       try {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
+        const response = await axios.get('http://127.0.0.1:8000/incidents?limit=1');
+        if (response.status === 200) {
+          // If WebSocket is not connected but API works, show as connected
+          if (connectionStatus === 'connecting' || connectionStatus === 'error') {
+            console.log('📡 API working, using fallback connection mode');
+            setConnectionStatus('connected');
+          }
+        }
       } catch (error) {
-        console.error('Error parsing WebSocket data:', error);
+        console.log('API check failed:', error.message);
+      }
+    };
+    
+    // Check connection after 3 seconds if still connecting
+    const connectionCheck = setTimeout(checkConnection, 3000);
+    
+    // Refresh incidents every 30 seconds
+    const interval = setInterval(fetchIncidents, 30000);
+    
+    return () => {
+      clearTimeout(connectionCheck);
+      clearInterval(interval);
+    };
+  }, [connectionStatus]);
+
+  // Test backend connectivity
+  const testBackendConnection = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/health', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        console.log('✅ Backend is running and healthy');
+        return true;
+      } else {
+        console.error('❌ Backend health check failed:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Backend connection failed:', error.message);
+      return false;
+    }
+  };
+
+  // WebSocket connection with better error handling and timeout
+  useEffect(() => {
+    let reconnectTimer;
+    let connectionTimeout;
+    
+    const connectWebSocket = async () => {
+      // First test if backend is running
+      const backendHealthy = await testBackendConnection();
+      if (!backendHealthy) {
+        console.error('Backend not available, retrying in 5 seconds...');
+        setConnectionStatus('error');
+        reconnectTimer = setTimeout(connectWebSocket, 5000);
+        return;
+      }
+
+      try {
+        setConnectionStatus('connecting');
+        const ws = new WebSocket('ws://localhost:8000/ws');
+        
+        // Set connection timeout
+        connectionTimeout = setTimeout(() => {
+          if (ws.readyState === WebSocket.CONNECTING) {
+            console.log('⏰ WebSocket connection timeout, closing...');
+            ws.close();
+            setConnectionStatus('error');
+          }
+        }, 5000); // 5 second timeout
+        
+        ws.onopen = () => {
+          console.log('✅ WebSocket connected successfully');
+          clearTimeout(connectionTimeout);
+          setConnectionStatus('connected');
+          setWebsocket(ws);
+          setConnectionAttempts(0);
+          
+          // Send a ping to confirm connection
+          ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('📨 WebSocket message received:', data);
+            
+            if (data.type === 'alert') {
+              // Real-time alert from AI detection
+              const alertData = data.data;
+              setAlerts(prev => [alertData, ...prev].slice(0, 50));
+              playAlarm();
+              
+              // Also add to incidents if it's a new incident
+              if (alertData.incident_type) {
+                const incident = {
+                  id: alertData.id || Date.now(),
+                  camera_id: alertData.camera_id,
+                  incident_type: alertData.incident_type,
+                  location: alertData.location,
+                  latitude: alertData.latitude,
+                  longitude: alertData.longitude,
+                  severity: alertData.severity || 'medium',
+                  status: 'active',
+                  timestamp: alertData.timestamp
+                };
+                setIncidents(prev => [incident, ...prev].slice(0, 10)); // Keep only 10 incidents
+                
+                // Refresh incidents from backend to ensure sync
+                setTimeout(fetchIncidents, 1000);
+              }
+            } else if (data.type === 'incident_update') {
+              // Incident status update
+              const updatedIncident = data.data;
+              setIncidents(prev => 
+                prev.map(incident => 
+                  incident.id === updatedIncident.id ? updatedIncident : incident
+                )
+              );
+              
+              // Refresh incidents from backend to ensure sync
+              setTimeout(fetchIncidents, 1000);
+            } else if (data.type === 'system') {
+              console.log('🔔 System message:', data.message);
+            } else if (data.type === 'connection') {
+              console.log('🔗 Connection confirmed:', data.message);
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+        
+        ws.onclose = (event) => {
+          console.log(`🔌 WebSocket disconnected: ${event.code} - ${event.reason}`);
+          clearTimeout(connectionTimeout);
+          setConnectionStatus('disconnected');
+          setWebsocket(null);
+          
+          // Only reconnect if it wasn't a manual close
+          if (event.code !== 1000) {
+            const attempts = connectionAttempts + 1;
+            setConnectionAttempts(attempts);
+            const delay = Math.min(2000 * attempts, 10000); // Max 10 seconds
+            
+            console.log(`🔄 Reconnecting in ${delay/1000} seconds... (attempt ${attempts})`);
+            reconnectTimer = setTimeout(connectWebSocket, delay);
+          }
+        };
+        
+        ws.onerror = (error) => {
+          console.error('❌ WebSocket error:', error);
+          clearTimeout(connectionTimeout);
+          setConnectionStatus('error');
+        };
+        
+      } catch (error) {
+        console.error('❌ Failed to create WebSocket connection:', error);
+        setConnectionStatus('error');
+        
+        // Retry connection after delay
+        const attempts = connectionAttempts + 1;
+        setConnectionAttempts(attempts);
+        const delay = Math.min(3000 * attempts, 15000);
+        reconnectTimer = setTimeout(connectWebSocket, delay);
       }
     };
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setSocket(null);
-      
-      // Attempt to reconnect after 3 seconds
-      setTimeout(() => {
-        console.log('Attempting to reconnect...');
-        // Trigger re-render to recreate connection
-        setSocket(null);
-      }, 3000);
-    };
+    // Start connection after a short delay to ensure backend is ready
+    const initialDelay = setTimeout(connectWebSocket, 1000);
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
+    // Cleanup on unmount
     return () => {
-      if (ws) {
-        ws.close();
+      clearTimeout(initialDelay);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
+      if (websocket) {
+        websocket.close(1000, 'Component unmounting');
       }
     };
   }, []);
 
-  const handleWebSocketMessage = (data) => {
-    switch (data.type) {
-      case 'alert':
-        addAlert({
-          type: data.alert_type,
-          message: data.message,
-          camera_id: data.camera_id,
-          location: data.location,
-          severity: data.severity,
-          timestamp: data.timestamp
-        });
-        break;
-        
-      case 'camera_status':
-        updateCameraStatus(data.camera_id, data.status);
-        break;
-        
-      case 'incident':
-        addIncident({
-          id: data.incident_id,
-          camera_id: data.camera_id,
-          incident_type: data.incident_type,
-          location: data.location,
-          severity: data.severity,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          timestamp: data.timestamp,
-          status: 'active'
-        });
-        
-        // Also create an alert for the incident
-        addAlert({
-          type: data.incident_type,
-          message: `${data.incident_type} detected at ${data.location}`,
-          camera_id: data.camera_id,
-          location: data.location,
-          severity: data.severity,
-          timestamp: data.timestamp
-        });
-        break;
-        
-      default:
-        console.log('Unknown message type:', data.type);
-    }
-  };
-
   const addAlert = (alertData) => {
     const newAlert = {
       id: Date.now() + Math.random(),
-      timestamp: new Date(alertData.timestamp || new Date()),
+      timestamp: new Date().toLocaleTimeString(),
       ...alertData
     };
-    
-    setAlerts(prev => [newAlert, ...prev].slice(0, 50)); // Keep only last 50 alerts
-    
-    // Play alert sound
-    playAlertSound();
-    
-    // Trigger browser notification if permission granted
-    showBrowserNotification(newAlert);
-  };
-
-  const addIncident = (incidentData) => {
-    setIncidents(prev => [incidentData, ...prev].slice(0, 100)); // Keep last 100 incidents
-  };
-
-  const updateCameraStatus = (cameraId, status) => {
-    setCameraStatuses(prev => new Map(prev.set(cameraId, {
-      status,
-      timestamp: new Date(),
-      previousStatus: prev.get(cameraId)?.status
-    })));
+    setAlerts(prev => [newAlert, ...prev].slice(0, 50));
+    playAlarm();
   };
 
   const removeAlert = (alertId) => {
@@ -139,98 +324,75 @@ export const AlertProvider = ({ children }) => {
     setAlerts([]);
   };
 
-  const playAlertSound = () => {
-    // Create audio context for alert sound
+  const simulateAlert = () => {
+    const alert = generateAlert();
+    setAlerts(prev => [alert, ...prev]);
+    playAlarm();
+  };
+
+  // Add function to update incident status
+  const updateIncidentStatus = async (incidentId, newStatus) => {
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.log('Audio not available');
-    }
-  };
+      // Update local state immediately for better UX
+      setIncidents(prev => 
+        prev.map(incident => 
+          incident.id === incidentId 
+            ? { ...incident, status: newStatus }
+            : incident
+        )
+      );
 
-  const showBrowserNotification = (alert) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`Security Alert: ${alert.type}`, {
-        body: alert.message,
-        icon: '/favicon.svg',
-        tag: alert.camera_id // Prevent duplicate notifications for same camera
-      });
-    }
-  };
+      console.log(`🔄 Updating incident ${incidentId} status to ${newStatus}`);
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
-    return Notification.permission === 'granted';
-  };
-
-  const simulateAlert = (type = 'weapon_detected') => {
-    const alertTypes = {
-      weapon_detected: {
-        type: 'Weapon Detected',
-        message: 'Suspicious weapon detected at Camera CAM002 (Metro Station)',
-        severity: 'high',
-        camera_id: 'CAM002',
-        location: 'Metro Station'
-      },
-      fire_detected: {
-        type: 'Fire Detected',
-        message: 'Fire detected at Camera CAM001 (City Center)',
-        severity: 'critical',
-        camera_id: 'CAM001',
-        location: 'City Center'
-      },
-      suspicious_activity: {
-        type: 'Suspicious Activity',
-        message: 'Unusual behavior detected at Camera CAM003 (Airport Gate)',
-        severity: 'medium',
-        camera_id: 'CAM003',
-        location: 'Airport Gate'
+      // Send update to backend via WebSocket or API
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+          type: 'incident_status_update',
+          incident_id: incidentId,
+          status: newStatus
+        }));
       }
-    };
 
-    addAlert(alertTypes[type] || alertTypes.weapon_detected);
+      // Make API call to ensure persistence - handle both custom ID and MongoDB ObjectId
+      const response = await fetch(`http://localhost:8000/incidents/${incidentId}/status?status=${newStatus}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Failed to update incident status: ${response.status} - ${errorData.detail || 'Unknown error'}`);
+      }
+
+      console.log(`✅ Incident ${incidentId} status updated to ${newStatus}`);
+      
+      // Refresh incidents from backend to ensure all components are in sync
+      setTimeout(fetchIncidents, 500);
+    } catch (error) {
+      console.error('❌ Error updating incident status:', error);
+      // Revert the optimistic update on error
+      fetchIncidents(); // Refresh from backend to get correct state
+    }
   };
 
-  const getCameraStatus = (cameraId) => {
-    return cameraStatuses.get(cameraId);
-  };
-
-  const getRecentIncidents = (limit = 10) => {
-    return incidents.slice(0, limit);
+  // Function to refresh incidents (can be called by components)
+  const refreshIncidents = () => {
+    fetchIncidents();
   };
 
   const value = {
     alerts,
     incidents,
-    cameraStatuses,
-    socket,
+    connectionStatus,
+    connectionAttempts,
     addAlert,
-    addIncident,
     removeAlert,
     clearAllAlerts,
     simulateAlert,
-    getCameraStatus,
-    getRecentIncidents,
-    requestNotificationPermission,
-    updateCameraStatus
+    updateIncidentStatus,
+    refreshIncidents
   };
 
   return (

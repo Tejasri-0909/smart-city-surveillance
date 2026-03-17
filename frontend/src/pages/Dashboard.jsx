@@ -1,109 +1,73 @@
 import { useState, useEffect } from 'react';
-import { Camera, AlertTriangle, Activity, MapPin, Map } from 'lucide-react';
+import { Camera, AlertTriangle, Activity, Map } from 'lucide-react';
 import { useAlert } from '../context/AlertContext';
 import { useNavigate } from 'react-router-dom';
-import CameraGrid from '../components/CameraGrid';
-import AlertsPanel from '../components/AlertsPanel';
-import IncidentTable from '../components/IncidentTable';
+import SafeCameraGrid from '../components/SafeCameraGrid';
 import axios from 'axios';
 
 const Dashboard = () => {
-  const [cameras, setCameras] = useState([]);
-  const [incidents, setIncidents] = useState([]);
   const [stats, setStats] = useState({
-    totalCameras: 0,
-    activeCameras: 0,
+    totalCameras: 6,
+    activeCameras: 6,
     totalIncidents: 0,
     activeIncidents: 0
   });
-  const { alerts, simulateAlert, getRecentIncidents } = useAlert();
+  
+  // Use centralized incident data from AlertContext
+  const { incidents, alerts, simulateAlert, connectionStatus } = useAlert();
   const navigate = useNavigate();
 
+  // Update stats when incidents change
   useEffect(() => {
-    fetchCameras();
-    fetchIncidents();
-    fetchMapStatistics();
+    const activeIncidents = incidents.filter(inc => inc.status === 'active').length;
+    setStats(prev => ({
+      ...prev,
+      totalIncidents: incidents.length,
+      activeIncidents: activeIncidents
+    }));
+  }, [incidents]);
+
+  // Fetch camera stats
+  useEffect(() => {
+    fetchCameraStats();
+    
+    // Refresh camera data every 30 seconds
+    const interval = setInterval(fetchCameraStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchCameras = async () => {
+  const fetchCameraStats = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/map/cameras-with-status');
-      const cameraData = response.data.cameras;
-      setCameras(cameraData);
+      const res = await axios.get("http://127.0.0.1:8000/cameras");
+      const cameras = res.data.cameras || [];
+      const activeCameras = cameras.filter(cam => cam.status === 'active').length;
       
       setStats(prev => ({
         ...prev,
-        totalCameras: cameraData.length,
-        activeCameras: cameraData.filter(cam => cam.status === 'active').length
+        totalCameras: cameras.length,
+        activeCameras: activeCameras
       }));
     } catch (error) {
-      console.error('Error fetching cameras:', error);
-      // Fallback to regular camera endpoint
-      try {
-        const response = await axios.get('http://127.0.0.1:8000/cameras');
-        const cameraData = response.data.cameras;
-        setCameras(cameraData);
-        
-        setStats(prev => ({
-          ...prev,
-          totalCameras: cameraData.length,
-          activeCameras: cameraData.filter(cam => cam.status === 'active').length
-        }));
-      } catch (fallbackError) {
-        console.error('Error fetching cameras (fallback):', fallbackError);
-      }
+      console.error("Failed to fetch camera stats:", error);
     }
   };
 
-  const fetchIncidents = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/incidents?limit=20');
-      const incidentData = response.data.incidents;
-      setIncidents(incidentData);
-      
-      setStats(prev => ({
-        ...prev,
-        totalIncidents: incidentData.length,
-        activeIncidents: incidentData.filter(inc => inc.status === 'active').length
-      }));
-    } catch (error) {
-      console.error('Error fetching incidents:', error);
-    }
-  };
-
-  const fetchMapStatistics = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/map/map-statistics');
-      const mapStats = response.data;
-      
-      setStats(prev => ({
-        ...prev,
-        totalCameras: mapStats.cameras.total,
-        activeCameras: mapStats.cameras.active,
-        activeIncidents: mapStats.incidents.active
-      }));
-    } catch (error) {
-      console.error('Error fetching map statistics:', error);
-    }
-  };
+  // Camera data
+  const cameraData = [
+    { id: 'CAM001', name: 'City Center' },
+    { id: 'CAM002', name: 'Metro Station' },
+    { id: 'CAM003', name: 'Airport Gate' },
+    { id: 'CAM004', name: 'Shopping Mall' },
+    { id: 'CAM005', name: 'Park Entrance' },
+    { id: 'CAM006', name: 'Highway Bridge' }
+  ];
 
   const handleViewOnMap = () => {
     navigate('/city-map');
   };
 
-  const handleSimulateMapIncident = async () => {
-    try {
-      await axios.post('http://127.0.0.1:8000/map/simulate-incident-on-map');
-      // Refresh data after simulation
-      setTimeout(() => {
-        fetchIncidents();
-        fetchCameras();
-      }, 1000);
-    } catch (error) {
-      console.error('Error simulating map incident:', error);
-      // Fallback to local simulation
-      simulateAlert('weapon_detected');
-    }
+  const handleSimulateAlert = () => {
+    simulateAlert();
   };
 
   return (
@@ -145,66 +109,88 @@ const Dashboard = () => {
             <Map size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-number">12</div>
-            <div className="stat-label">Monitored Areas</div>
+            <div className="stat-number">{incidents.length}</div>
+            <div className="stat-label">Map Incidents</div>
             <div className="stat-action">View Map →</div>
           </div>
         </div>
       </div>
 
-      {/* Main Dashboard Grid */}
-      <div className="dashboard-grid">
-        <div className="dashboard-section camera-section">
-          <div className="section-header">
-            <h3 className="section-title">
-              <Camera size={20} />
-              Live Camera Feed
-            </h3>
-            <div className="section-actions">
-              <button 
-                className="btn btn-secondary btn-sm"
-                onClick={handleViewOnMap}
-              >
-                <Map size={14} />
-                View on Map
-              </button>
-              <button 
-                className="btn btn-primary"
-                onClick={handleSimulateMapIncident}
-              >
-                Simulate Alert
-              </button>
-            </div>
-          </div>
-          <CameraGrid cameras={cameras} />
-        </div>
-
-        <div className="dashboard-section alerts-section">
-          <div className="section-header">
-            <h3 className="section-title">
-              <AlertTriangle size={20} />
-              Recent Alerts
-            </h3>
-          </div>
-          <AlertsPanel />
-        </div>
-
-        <div className="dashboard-section incidents-section">
-          <div className="section-header">
-            <h3 className="section-title">
-              <Activity size={20} />
-              Recent Incidents
-            </h3>
+      {/* Simple Camera Grid */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h3 className="section-title">
+            <Camera size={20} />
+            Live Camera Feed
+            <span className="connection-status" style={{
+              color: connectionStatus === 'connected' ? '#00ff88' : '#ff4444',
+              marginLeft: '10px',
+              fontSize: '12px'
+            }}>
+              {connectionStatus === 'connected' ? '● CONNECTED' : '● DISCONNECTED'}
+            </span>
+          </h3>
+          <div className="section-actions">
             <button 
               className="btn btn-secondary btn-sm"
               onClick={handleViewOnMap}
             >
-              <MapPin size={14} />
-              View Locations
+              <Map size={14} />
+              View on Map
+            </button>
+            <button 
+              className="btn btn-primary"
+              onClick={handleSimulateAlert}
+            >
+              Simulate Alert
             </button>
           </div>
-          <IncidentTable incidents={incidents.slice(0, 10)} />
         </div>
+        
+        <SafeCameraGrid />
+      </div>
+
+      {/* Simple Alerts Panel */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h3 className="section-title">
+            <AlertTriangle size={20} />
+            Recent Alerts
+          </h3>
+        </div>
+        
+        {alerts.length === 0 ? (
+          <div className="no-alerts">
+            <AlertTriangle size={48} className="no-alerts-icon" />
+            <p>No active alerts</p>
+            <span>System monitoring normally</span>
+          </div>
+        ) : (
+          <div className="alerts-list">
+            {alerts.slice(0, 5).map((alert) => (
+              <div key={alert.id} className="alert-item">
+                <div className="alert-header">
+                  <div className="alert-type-container">
+                    <AlertTriangle size={16} />
+                    <span className="alert-type">{alert.incident_type}</span>
+                  </div>
+                  <div className="alert-actions">
+                    <span className="alert-time">
+                      {alert.timestamp}
+                    </span>
+                  </div>
+                </div>
+                <div className="alert-message">{alert.message}</div>
+                {alert.camera_id && (
+                  <div className="alert-details">
+                    <span className="alert-camera">Camera: {alert.camera_id}</span>
+                    <span className="alert-location">Location: {alert.location}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
