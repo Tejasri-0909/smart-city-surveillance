@@ -39,14 +39,14 @@ const CameraGrid = ({ cameras = [] }) => {
   const getVideoSource = (cameraId) => {
     // Map camera IDs to video files
     const videoMap = {
-      'CAM001': '/videos/cam1.mp4',
-      'CAM002': '/videos/cam2.mp4', 
-      'CAM003': '/videos/cam3.mp4',
-      'CAM004': '/videos/cam4.mp4',
-      'CAM005': '/videos/cam5.mp4',
-      'CAM006': '/videos/cam6.mp4'
+      'CAM001': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4',
+      'CAM002': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771935/cam2_euevgq.mp4', 
+      'CAM003': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771955/cam3_sug2zm.mp4',
+      'CAM004': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771984/cam4_xexpfj.mp4',
+      'CAM005': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773773966/Cam5_gefgvz.mp4',
+      'CAM006': 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773774617/Cam6_bwq6kd.mp4'
     };
-    return videoMap[cameraId] || '/videos/cam1.mp4';
+    return videoMap[cameraId] || 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4';
   };
 
   const handleStartRecording = async (cameraId) => {

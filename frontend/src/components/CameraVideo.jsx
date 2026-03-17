@@ -11,12 +11,12 @@ const CameraVideo = ({ cameraId, cameraName, index }) => {
   // Location-specific video URLs - now using local CCTV files
   const getLocationVideos = (cameraId) => {
     const videoMap = {
-      'CAM001': [`/cctv/cam1.mp4`], // City Center
-      'CAM002': [`/cctv/cam2.mp4`], // Metro Station  
-      'CAM003': [`/cctv/cam3.mp4`], // Airport Gate
-      'CAM004': [`/cctv/cam4.mp4`], // Shopping Mall
-      'CAM005': [`/cctv/cam5.mp4`], // Park Entrance
-      'CAM006': [`/cctv/cam6.mp4`]  // Highway Bridge
+      'CAM001': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4`], // City Center
+      'CAM002': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773771935/cam2_euevgq.mp4`], // Metro Station  
+      'CAM003': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773771955/cam3_sug2zm.mp4`], // Airport Gate
+      'CAM004': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773771984/cam4_xexpfj.mp4`], // Shopping Mall
+      'CAM005': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773773966/Cam5_gefgvz.mp4`], // Park Entrance
+      'CAM006': [`https://res.cloudinary.com/dybci4h1u/video/upload/v1773774617/Cam6_bwq6kd.mp4`]  // Highway Bridge
     };
     return videoMap[cameraId] || videoMap['CAM001'];
   };
@@ -36,10 +36,10 @@ const CameraVideo = ({ cameraId, cameraName, index }) => {
       // Get location-specific videos
       const locationVideos = getLocationVideos(cameraId);
       
-      // List of video sources to try - prioritize local CCTV files
+      // List of video sources to try - prioritize Cloudinary URLs
       const videoSources = [
-        ...locationVideos, // Local CCTV files first
-        `/cctv/cam${index}.mp4` // Fallback to index-based naming
+        ...locationVideos, // Cloudinary URLs first
+        `https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam${index}_funvna.mp4` // Fallback to index-based naming
       ];
 
       for (const src of videoSources) {

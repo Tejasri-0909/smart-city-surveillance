@@ -164,10 +164,11 @@ export const AlertProvider = ({ children }) => {
     }
   };
 
-  // WebSocket connection with better error handling and timeout
+  // Improved WebSocket connection for 24/7 operation
   useEffect(() => {
     let reconnectTimer;
     let connectionTimeout;
+    let heartbeatInterval;
     
     const connectWebSocket = async () => {
       // First test if backend is running
@@ -190,25 +191,37 @@ export const AlertProvider = ({ children }) => {
             ws.close();
             setConnectionStatus('error');
           }
-        }, 5000); // 5 second timeout
+        }, 10000); // 10 second timeout
         
         ws.onopen = () => {
-          console.log('✅ WebSocket connected successfully');
+          console.log('✅ WebSocket connected successfully (24/7 mode)');
           clearTimeout(connectionTimeout);
           setConnectionStatus('connected');
           setWebsocket(ws);
           setConnectionAttempts(0);
           
-          // Send a ping to confirm connection
-          ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          // Start heartbeat to keep connection alive
+          heartbeatInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ 
+                type: 'heartbeat', 
+                timestamp: Date.now() 
+              }));
+            }
+          }, 30000); // Send heartbeat every 30 seconds
         };
         
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('📨 WebSocket message received:', data);
             
-            if (data.type === 'alert') {
+            if (data.type === 'connection') {
+              console.log('🔗 WebSocket connection confirmed:', data.message);
+            } else if (data.type === 'heartbeat' || data.type === 'heartbeat_ack') {
+              console.log('💓 Heartbeat received - connection alive');
+            } else if (data.type === 'pong') {
+              console.log('🏓 Pong received');
+            } else if (data.type === 'alert') {
               // Real-time alert from AI detection
               const alertData = data.data;
               setAlerts(prev => [alertData, ...prev].slice(0, 50));
@@ -227,9 +240,9 @@ export const AlertProvider = ({ children }) => {
                   status: 'active',
                   timestamp: alertData.timestamp
                 };
-                setIncidents(prev => [incident, ...prev].slice(0, 10)); // Keep only 10 incidents
+                setIncidents(prev => [incident, ...prev].slice(0, 10));
                 
-                // Refresh incidents from backend to ensure sync
+                // Refresh incidents from backend
                 setTimeout(fetchIncidents, 1000);
               }
             } else if (data.type === 'incident_update') {
@@ -241,12 +254,8 @@ export const AlertProvider = ({ children }) => {
                 )
               );
               
-              // Refresh incidents from backend to ensure sync
+              // Refresh incidents from backend
               setTimeout(fetchIncidents, 1000);
-            } else if (data.type === 'system') {
-              console.log('🔔 System message:', data.message);
-            } else if (data.type === 'connection') {
-              console.log('🔗 Connection confirmed:', data.message);
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);
@@ -256,14 +265,15 @@ export const AlertProvider = ({ children }) => {
         ws.onclose = (event) => {
           console.log(`🔌 WebSocket disconnected: ${event.code} - ${event.reason}`);
           clearTimeout(connectionTimeout);
+          clearInterval(heartbeatInterval);
           setConnectionStatus('disconnected');
           setWebsocket(null);
           
           // Only reconnect if it wasn't a manual close
-          if (event.code !== 1000) {
+          if (event.code !== 1000 && connectionAttempts < 10) {
             const attempts = connectionAttempts + 1;
             setConnectionAttempts(attempts);
-            const delay = Math.min(2000 * attempts, 10000); // Max 10 seconds
+            const delay = Math.min(3000 * attempts, 30000); // Max 30 seconds
             
             console.log(`🔄 Reconnecting in ${delay/1000} seconds... (attempt ${attempts})`);
             reconnectTimer = setTimeout(connectWebSocket, delay);
@@ -273,6 +283,7 @@ export const AlertProvider = ({ children }) => {
         ws.onerror = (error) => {
           console.error('❌ WebSocket error:', error);
           clearTimeout(connectionTimeout);
+          clearInterval(heartbeatInterval);
           setConnectionStatus('error');
         };
         
@@ -283,13 +294,13 @@ export const AlertProvider = ({ children }) => {
         // Retry connection after delay
         const attempts = connectionAttempts + 1;
         setConnectionAttempts(attempts);
-        const delay = Math.min(3000 * attempts, 15000);
+        const delay = Math.min(5000 * attempts, 30000);
         reconnectTimer = setTimeout(connectWebSocket, delay);
       }
     };
 
-    // Start connection after a short delay to ensure backend is ready
-    const initialDelay = setTimeout(connectWebSocket, 1000);
+    // Start connection after a short delay
+    const initialDelay = setTimeout(connectWebSocket, 2000);
 
     // Cleanup on unmount
     return () => {
@@ -299,6 +310,9 @@ export const AlertProvider = ({ children }) => {
       }
       if (connectionTimeout) {
         clearTimeout(connectionTimeout);
+      }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
       }
       if (websocket) {
         websocket.close(1000, 'Component unmounting');
