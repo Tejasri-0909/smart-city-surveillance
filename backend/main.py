@@ -93,15 +93,57 @@ app.add_middleware(
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time communication"""
-    await websocket_manager.connect(websocket)
     try:
+        await websocket_manager.connect(websocket)
+        logger.info(f"WebSocket client connected. Total connections: {websocket_manager.get_connection_count()}")
+        
+        # Send welcome message
+        await websocket.send_text(json.dumps({
+            "type": "connection",
+            "message": "Connected to Smart City Surveillance",
+            "timestamp": datetime.now().isoformat()
+        }))
+        
         while True:
-            # Keep connection alive and handle incoming messages
-            data = await websocket.receive_text()
-            # Echo back for testing
-            await websocket.send_text(f"Message received: {data}")
-    except WebSocketDisconnect:
+            try:
+                # Keep connection alive and handle incoming messages
+                data = await websocket.receive_text()
+                logger.info(f"WebSocket message received: {data}")
+                
+                try:
+                    message = json.loads(data)
+                    if message.get("type") == "ping":
+                        # Respond to ping with pong
+                        await websocket.send_text(json.dumps({
+                            "type": "pong",
+                            "timestamp": datetime.now().isoformat()
+                        }))
+                    else:
+                        # Echo back other messages
+                        await websocket.send_text(json.dumps({
+                            "type": "echo",
+                            "message": f"Message received: {data}",
+                            "timestamp": datetime.now().isoformat()
+                        }))
+                except json.JSONDecodeError:
+                    # Handle non-JSON messages
+                    await websocket.send_text(json.dumps({
+                        "type": "echo",
+                        "message": f"Message received: {data}",
+                        "timestamp": datetime.now().isoformat()
+                    }))
+                    
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"Error in WebSocket message handling: {e}")
+                break
+                
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}")
+    finally:
         websocket_manager.disconnect(websocket)
+        logger.info(f"WebSocket client disconnected. Total connections: {websocket_manager.get_connection_count()}")
 
 # Include routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
