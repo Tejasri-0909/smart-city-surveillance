@@ -5,23 +5,11 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: |
-      python -m pip install --upgrade pip
-      pip install --no-cache-dir -r requirements-ultra-minimal.txt
+    buildCommand: pip install fastapi uvicorn
     startCommand: python app.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: PIP_NO_CACHE_DIR
-        value: 1
-      - key: PYTHONUNBUFFERED
-        value: 1
-      - key: MONGO_URL
-        value: mongodb+srv://admin:Admin1234@cluster0.xkdu0rp.mongodb.net/
-      - key: JWT_SECRET
-        value: supersecretkey-render-deployment-2024
-      - key: API_BASE_URL
-        value: https://smart-city-surveillance.onrender.com
       - key: PORT
         generateValue: true
     healthCheckPath: /health
