@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Camera, Grid, Maximize2, Play, Square, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CameraVideo from '../components/CameraVideo';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, isFallbackMode } from '../config/api';
+import { getFallbackCameras } from '../utils/fallbackData';
 import axios from 'axios';
 
 const LiveMonitoring = () => {
@@ -37,18 +38,32 @@ const LiveMonitoring = () => {
 
   const fetchCameras = async () => {
     try {
-      const response = await axios.get(getApiUrl('/cameras'));
+      // Check if we're in fallback mode
+      if (isFallbackMode()) {
+        console.log('📱 Using fallback camera data');
+        const fallbackCameras = getFallbackCameras();
+        setCameras(fallbackCameras);
+        if (fallbackCameras.length > 0 && !selectedCamera) {
+          setSelectedCamera(fallbackCameras[0]);
+        }
+        return;
+      }
+      
+      const response = await axios.get(getApiUrl('/cameras'), { timeout: 5000 });
       setCameras(response.data.cameras);
       if (response.data.cameras.length > 0 && !selectedCamera) {
         setSelectedCamera(response.data.cameras[0]);
       }
     } catch (error) {
-      console.error('Error fetching cameras:', error);
-      // Use default cameras for demo
-      const defaultCameras = [
-        { camera_id: 'CAM001', location: 'City Center', status: 'active' },
-        { camera_id: 'CAM002', location: 'Metro Station', status: 'active' },
-        { camera_id: 'CAM003', location: 'Airport Gate', status: 'active' },
+      console.error('Error fetching cameras, using fallback:', error);
+      // Use fallback cameras
+      const fallbackCameras = getFallbackCameras();
+      setCameras(fallbackCameras);
+      if (fallbackCameras.length > 0 && !selectedCamera) {
+        setSelectedCamera(fallbackCameras[0]);
+      }
+    }
+  };
         { camera_id: 'CAM004', location: 'Shopping Mall', status: 'active' },
         { camera_id: 'CAM005', location: 'Park Entrance', status: 'active' },
         { camera_id: 'CAM006', location: 'Highway Bridge', status: 'active' }

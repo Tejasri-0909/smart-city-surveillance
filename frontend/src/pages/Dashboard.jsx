@@ -3,7 +3,8 @@ import { Camera, AlertTriangle, Activity, Map } from 'lucide-react';
 import { useAlert } from '../context/AlertContext';
 import { useNavigate } from 'react-router-dom';
 import SafeCameraGrid from '../components/SafeCameraGrid';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, isFallbackMode } from '../config/api';
+import { getFallbackCameras } from '../utils/fallbackData';
 import axios from 'axios';
 
 const Dashboard = () => {
@@ -39,7 +40,21 @@ const Dashboard = () => {
 
   const fetchCameraStats = async () => {
     try {
-      const res = await axios.get(getApiUrl("/cameras"));
+      // Check if we're in fallback mode
+      if (isFallbackMode()) {
+        console.log('📱 Using fallback camera stats');
+        const fallbackCameras = getFallbackCameras();
+        const activeCameras = fallbackCameras.filter(cam => cam.status === 'active').length;
+        
+        setStats(prev => ({
+          ...prev,
+          totalCameras: fallbackCameras.length,
+          activeCameras: activeCameras
+        }));
+        return;
+      }
+      
+      const res = await axios.get(getApiUrl("/cameras"), { timeout: 5000 });
       const cameras = res.data.cameras || [];
       const activeCameras = cameras.filter(cam => cam.status === 'active').length;
       
@@ -49,6 +64,18 @@ const Dashboard = () => {
         activeCameras: activeCameras
       }));
     } catch (error) {
+      console.error('Error fetching camera stats, using fallback:', error);
+      // Use fallback data
+      const fallbackCameras = getFallbackCameras();
+      const activeCameras = fallbackCameras.filter(cam => cam.status === 'active').length;
+      
+      setStats(prev => ({
+        ...prev,
+        totalCameras: fallbackCameras.length,
+        activeCameras: activeCameras
+      }));
+    }
+  };
       console.error("Failed to fetch camera stats:", error);
     }
   };

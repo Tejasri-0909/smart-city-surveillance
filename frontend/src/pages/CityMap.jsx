@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { MapPin, AlertTriangle, Eye } from "lucide-react";
 import { useAlert } from "../context/AlertContext";
 import { useNavigate } from "react-router-dom";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, isFallbackMode } from "../config/api";
+import { getFallbackCameras } from "../utils/fallbackData";
 import axios from "axios";
 
 const CityMap = () => {
@@ -32,13 +33,20 @@ const CityMap = () => {
 
   const fetchCameras = async () => {
     try {
-      const res = await axios.get(getApiUrl("/cameras"));
+      // Check if we're in fallback mode
+      if (isFallbackMode()) {
+        console.log('📱 Using fallback camera data for map');
+        setCameras(getFallbackCameras());
+        return;
+      }
+      
+      const res = await axios.get(getApiUrl("/cameras"), { timeout: 5000 });
       setCameras(res.data.cameras || []);
     } catch (error) {
-      console.error("Failed to fetch cameras:", error);
-      setCameras([
-        {
-          camera_id: "CAM001",
+      console.error("Failed to fetch cameras, using fallback:", error);
+      setCameras(getFallbackCameras());
+    }
+  };
           location: "City Center",
           latitude: 40.7128,
           longitude: -74.006,

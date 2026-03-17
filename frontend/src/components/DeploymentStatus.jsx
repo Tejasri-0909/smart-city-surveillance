@@ -1,11 +1,12 @@
 import React from 'react';
 import { useAlert } from '../context/AlertContext';
-import { API_CONFIG } from '../config/api';
+import { isFallbackMode } from '../config/api';
 
 const DeploymentStatus = () => {
   const { connectionStatus, connectionAttempts } = useAlert();
 
   const getStatusColor = () => {
+    if (isFallbackMode()) return '#f59e0b'; // orange for fallback
     switch (connectionStatus) {
       case 'connected': return '#10b981'; // green
       case 'connecting': return '#f59e0b'; // yellow
@@ -16,6 +17,7 @@ const DeploymentStatus = () => {
   };
 
   const getStatusText = () => {
+    if (isFallbackMode()) return 'Offline Mode (Backend Down)';
     switch (connectionStatus) {
       case 'connected': return 'Connected to Render Backend';
       case 'connecting': return 'Connecting to Backend...';
@@ -54,7 +56,7 @@ const DeploymentStatus = () => {
         </span>
       )}
       <div style={{ fontSize: '10px', opacity: 0.6 }}>
-        🚀 Production (Render)
+        {isFallbackMode() ? '📱 Offline Mode' : '🚀 Production (Render)'}
       </div>
       
       <style jsx>{`
