@@ -47,49 +47,6 @@ const CityMap = () => {
       setCameras(getFallbackCameras());
     }
   };
-          location: "City Center",
-          latitude: 40.7128,
-          longitude: -74.006,
-          status: "active",
-        },
-        {
-          camera_id: "CAM002",
-          location: "Metro Station",
-          latitude: 40.7589,
-          longitude: -73.9851,
-          status: "active",
-        },
-        {
-          camera_id: "CAM003",
-          location: "Airport Gate",
-          latitude: 40.6892,
-          longitude: -74.1745,
-          status: "active",
-        },
-        {
-          camera_id: "CAM004",
-          location: "Shopping Mall",
-          latitude: 40.7505,
-          longitude: -73.9934,
-          status: "active",
-        },
-        {
-          camera_id: "CAM005",
-          location: "Park Entrance",
-          latitude: 40.7829,
-          longitude: -73.9654,
-          status: "active",
-        },
-        {
-          camera_id: "CAM006",
-          location: "Highway Bridge",
-          latitude: 40.7282,
-          longitude: -74.0776,
-          status: "active",
-        },
-      ]);
-    }
-  };
 
   const openLiveMonitoring = (camera) => {
     // Use React Router navigation instead of window.location

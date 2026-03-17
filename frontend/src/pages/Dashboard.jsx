@@ -76,19 +76,6 @@ const Dashboard = () => {
       }));
     }
   };
-      console.error("Failed to fetch camera stats:", error);
-    }
-  };
-
-  // Camera data
-  const cameraData = [
-    { id: 'CAM001', name: 'City Center' },
-    { id: 'CAM002', name: 'Metro Station' },
-    { id: 'CAM003', name: 'Airport Gate' },
-    { id: 'CAM004', name: 'Shopping Mall' },
-    { id: 'CAM005', name: 'Park Entrance' },
-    { id: 'CAM006', name: 'Highway Bridge' }
-  ];
 
   const handleViewOnMap = () => {
     navigate('/city-map');
