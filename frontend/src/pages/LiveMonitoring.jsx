@@ -64,16 +64,6 @@ const LiveMonitoring = () => {
       }
     }
   };
-        { camera_id: 'CAM004', location: 'Shopping Mall', status: 'active' },
-        { camera_id: 'CAM005', location: 'Park Entrance', status: 'active' },
-        { camera_id: 'CAM006', location: 'Highway Bridge', status: 'active' }
-      ];
-      setCameras(defaultCameras);
-      if (!selectedCamera) {
-        setSelectedCamera(defaultCameras[0]);
-      }
-    }
-  };
 
   const handleCameraSelect = (camera) => {
     setSelectedCamera(camera);
