@@ -225,31 +225,40 @@ async def update_incident_status(incident_id: str, status: str):
 ### 4. **Video Upload & Analysis System**
 **File**: `frontend/src/pages/VideoUpload.jsx`
 **Technology**: React + HTML5 Video + Canvas API
-**Purpose**: AI-powered video analysis
+**Purpose**: Video analysis framework with AI simulation for demonstration
 
 **Advanced Features Implemented**:
 - Drag-and-drop video upload
 - Professional video player with full controls
-- Real-time AI analysis simulation
+- **AI analysis simulation** (demonstrates UI/UX for real AI integration)
 - Detection overlay system
 - Timeline visualization
 - Comprehensive results dashboard
 
-**Technical Innovation**:
+**Important Note**: Currently uses **simulated AI analysis** for demonstration purposes. The system generates realistic-looking threat detections to showcase the complete user interface and workflow. This simulation demonstrates:
+- How real AI results would be displayed
+- The complete analysis workflow
+- Professional results presentation
+- Integration with incident management
+
+**Technical Implementation**:
 ```javascript
-// AI Analysis Simulation
+// AI Analysis Simulation (for demonstration)
 const performVideoAnalysis = async (file) => {
+  // NOTE: This is simulation - not real AI analysis
+  // In production, this would connect to actual AI/ML models
+  
   const detections = [];
   const videoLength = duration || 180;
   
-  // Generate realistic AI detections
+  // Generate realistic-looking detections for demo
   const detectionTypes = [
     { type: 'Person Detected', severity: 'low' },
     { type: 'Weapon Detected', severity: 'critical' },
     { type: 'Suspicious Activity', severity: 'medium' }
   ];
   
-  // Simulate advanced AI processing
+  // Simulate processing time and generate demo results
   for (let i = 0; i < numDetections; i++) {
     detections.push({
       timestamp: Math.random() * videoLength,
@@ -262,6 +271,8 @@ const performVideoAnalysis = async (file) => {
   return { detections, summary, timeline };
 };
 ```
+
+**Ready for Real AI Integration**: The framework is designed to easily integrate with actual AI/ML models by replacing the simulation function with real AI API calls.
 
 ### 5. **Interactive City Map**
 **File**: `frontend/src/pages/CityMap.jsx`

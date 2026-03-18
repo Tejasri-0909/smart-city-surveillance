@@ -47,12 +47,13 @@ Deployment: Production-ready configuration
 - Heatmap analysis
 - Real-time marker updates
 
-### 4. **Advanced Video Analysis** ⭐ **Latest Enhancement**
+### 4. **Video Analysis Framework** ⭐ **Latest Enhancement**
 - Professional video upload system
-- AI-powered threat detection simulation
+- **AI simulation framework** (demonstrates real AI integration workflow)
 - Full video controls (play, pause, zoom, seek)
 - Detection overlays and timeline visualization
 - Comprehensive analysis results dashboard
+- **Ready for real AI integration** (framework designed for easy AI model connection)
 
 ### 5. **Camera Management**
 - Individual camera monitoring
@@ -177,16 +178,24 @@ Deployment: Production-ready configuration
 
 ## 📈 Advanced Features Showcase
 
-### **Video Analysis System** (Latest Enhancement)
+### **Video Analysis Framework** (Latest Enhancement)
 ```
-✅ Professional Video Upload
-✅ Real-time AI Analysis (8 threat types)
-✅ Detection Overlays with Confidence Scoring
+✅ Professional Video Upload System
+✅ AI Integration Framework (simulation for demo)
+✅ Detection Overlay System with Confidence Scoring
 ✅ Timeline Visualization with Markers
 ✅ Full Video Controls (zoom, speed, seek)
 ✅ Comprehensive Results Dashboard
-✅ Incident Conversion Capability
+✅ Ready for Real AI Model Integration
 ```
+
+**Important Note**: The video analysis currently uses **simulation** to demonstrate the complete AI integration workflow. This shows:
+- How real AI results would be displayed
+- The complete user interface for AI analysis
+- Professional results presentation
+- Integration with incident management system
+
+The framework is designed for easy integration with actual AI/ML models in production.
 
 ### **Real-time Communication**
 ```

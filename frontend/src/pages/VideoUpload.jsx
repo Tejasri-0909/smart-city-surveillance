@@ -327,6 +327,10 @@ const VideoUpload = () => {
       <div className="upload-header">
         <h2>Video Upload Analysis</h2>
         <p>Upload video files for AI-powered threat detection analysis</p>
+        <div className="demo-notice">
+          <span className="demo-badge">DEMO MODE</span>
+          <span className="demo-text">AI analysis uses simulation for demonstration purposes</span>
+        </div>
       </div>
 
       <div className="upload-content">
@@ -542,7 +546,7 @@ const VideoUpload = () => {
                     onClick={startAnalysis}
                   >
                     <AlertTriangle size={20} />
-                    Start AI Analysis
+                    Start AI Analysis (Demo)
                   </button>
                 )}
                 
@@ -551,7 +555,7 @@ const VideoUpload = () => {
                     <div className="analysis-progress">
                       <div className="progress-spinner"></div>
                       <div className="progress-info">
-                        <span>Analyzing video for threats...</span>
+                        <span>Analyzing video for threats... (Demo Mode)</span>
                         <div className="progress-bar-small">
                           <div 
                             className="progress-fill-small" 
