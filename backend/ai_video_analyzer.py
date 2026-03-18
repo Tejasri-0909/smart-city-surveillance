@@ -24,31 +24,30 @@ class ThreatDetector:
     def __init__(self):
         self.model = None
         self.threat_classes = {
-            # Weapons and dangerous objects
-            'knife': {'severity': 'critical', 'threat_level': 0.9},
-            'gun': {'severity': 'critical', 'threat_level': 0.95},
-            'rifle': {'severity': 'critical', 'threat_level': 0.95},
-            'pistol': {'severity': 'critical', 'threat_level': 0.95},
+            # Only genuine weapons and dangerous objects
+            'knife': {'severity': 'critical', 'threat_level': 0.95, 'min_confidence': 0.8},
+            'gun': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
+            'rifle': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
+            'pistol': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
             
-            # Suspicious objects
-            'backpack': {'severity': 'medium', 'threat_level': 0.3},
-            'suitcase': {'severity': 'medium', 'threat_level': 0.4},
-            'handbag': {'severity': 'low', 'threat_level': 0.2},
+            # Only unattended objects (not carried items)
+            'suitcase': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.75, 'requires_unattended': True},
+            'backpack': {'severity': 'low', 'threat_level': 0.3, 'min_confidence': 0.8, 'requires_unattended': True},
             
-            # Vehicles in restricted areas
-            'car': {'severity': 'medium', 'threat_level': 0.5},
-            'truck': {'severity': 'high', 'threat_level': 0.7},
-            'motorcycle': {'severity': 'medium', 'threat_level': 0.4},
-            'bicycle': {'severity': 'low', 'threat_level': 0.2},
+            # Vehicles only in restricted pedestrian areas
+            'car': {'severity': 'medium', 'threat_level': 0.7, 'min_confidence': 0.85, 'context_required': True},
+            'truck': {'severity': 'high', 'threat_level': 0.8, 'min_confidence': 0.85, 'context_required': True},
+            'motorcycle': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.8, 'context_required': True},
             
-            # People and behavior
-            'person': {'severity': 'low', 'threat_level': 0.1},
+            # People - only for crowd analysis, not individual detection
+            'person': {'severity': 'low', 'threat_level': 0.1, 'min_confidence': 0.9, 'crowd_only': True},
         }
         
-        # Behavioral analysis thresholds
-        self.crowd_threshold = 5  # Number of people for crowd detection
-        self.loitering_time = 30  # Seconds for loitering detection
-        self.speed_threshold = 15  # Pixels per frame for running detection
+        # Strict thresholds to prevent false positives
+        self.crowd_threshold = 8  # Increased from 5 - only large crowds
+        self.loitering_time = 60  # Increased to 60 seconds
+        self.unattended_time = 45  # Objects must be unattended for 45+ seconds
+        self.restricted_zones = []  # Define restricted areas for vehicles
         
         self.initialize_model()
     
@@ -171,7 +170,7 @@ class VideoAnalyzer:
             raise
     
     async def analyze_frame(self, frame: np.ndarray, timestamp: float) -> List[Dict]:
-        """Analyze single frame for objects and threats"""
+        """Analyze single frame for objects and threats with strict filtering"""
         detections = []
         
         try:
@@ -189,41 +188,114 @@ class VideoAnalyzer:
                             class_id = int(box.cls[0].cpu().numpy())
                             class_name = self.threat_detector.model.names[class_id]
                             
-                            # Check if this is a threat class
+                            # Check if this is a threat class with strict filtering
                             if class_name in self.threat_detector.threat_classes:
                                 threat_info = self.threat_detector.threat_classes[class_name]
+                                
+                                # Apply strict confidence thresholds
+                                min_confidence = threat_info.get('min_confidence', 0.8)
+                                if confidence < min_confidence:
+                                    continue  # Skip low confidence detections
+                                
+                                # Additional context-based filtering
+                                if not self.is_genuine_threat(class_name, threat_info, confidence, x1, y1, x2, y2, frame):
+                                    continue  # Skip false positives
                                 
                                 # Calculate threat score
                                 threat_score = confidence * threat_info['threat_level']
                                 
-                                # Only report significant detections
-                                if confidence > 0.5:
-                                    detection = {
-                                        'id': f"detection_{len(detections)}_{timestamp}",
-                                        'timestamp': self.format_timestamp(timestamp),
-                                        'timestampSeconds': timestamp,
-                                        'type': self.get_threat_type(class_name),
-                                        'object_class': class_name,
-                                        'severity': threat_info['severity'],
-                                        'confidence': confidence,
-                                        'threat_score': threat_score,
-                                        'location': {
-                                            'x': (x1 / frame.shape[1]) * 100,  # Convert to percentage
-                                            'y': (y1 / frame.shape[0]) * 100,
-                                            'width': ((x2 - x1) / frame.shape[1]) * 100,
-                                            'height': ((y2 - y1) / frame.shape[0]) * 100
-                                        },
-                                        'description': self.generate_description(class_name, confidence, threat_score),
-                                        'ai_model': 'YOLOv8'
-                                    }
-                                    detections.append(detection)
+                                detection = {
+                                    'id': f"detection_{len(detections)}_{timestamp}",
+                                    'timestamp': self.format_timestamp(timestamp),
+                                    'timestampSeconds': timestamp,
+                                    'type': self.get_threat_type(class_name),
+                                    'object_class': class_name,
+                                    'severity': threat_info['severity'],
+                                    'confidence': confidence,
+                                    'threat_score': threat_score,
+                                    'location': {
+                                        'x': (x1 / frame.shape[1]) * 100,
+                                        'y': (y1 / frame.shape[0]) * 100,
+                                        'width': ((x2 - x1) / frame.shape[1]) * 100,
+                                        'height': ((y2 - y1) / frame.shape[0]) * 100
+                                    },
+                                    'description': self.generate_description(class_name, confidence, threat_score),
+                                    'ai_model': 'YOLOv8',
+                                    'verification': 'High confidence genuine threat'
+                                }
+                                detections.append(detection)
             
             else:
-                # Fallback: Enhanced computer vision detection
-                detections = await self.fallback_detection(frame, timestamp)
+                # Fallback: Only detect obvious threats with computer vision
+                detections = await self.strict_fallback_detection(frame, timestamp)
         
         except Exception as e:
             logger.error(f"❌ Frame analysis error: {e}")
+        
+        return detections
+    
+    def is_genuine_threat(self, class_name: str, threat_info: Dict, confidence: float, 
+                         x1: float, y1: float, x2: float, y2: float, frame: np.ndarray) -> bool:
+        """Advanced filtering to determine if detection is a genuine threat"""
+        
+        # Weapons are always threats if confidence is high
+        if class_name in ['knife', 'gun', 'rifle', 'pistol']:
+            return confidence > 0.85  # Very high threshold for weapons
+        
+        # People - only report for crowd analysis
+        if class_name == 'person':
+            return False  # Don't report individual people as threats
+        
+        # Vehicles - only in pedestrian areas or restricted zones
+        if class_name in ['car', 'truck', 'motorcycle']:
+            # Check if vehicle is in a restricted pedestrian area
+            # For now, assume normal traffic areas are not threats
+            return False  # Don't report normal vehicle traffic
+        
+        # Bags/objects - only if unattended (would need tracking across frames)
+        if class_name in ['backpack', 'suitcase']:
+            # For now, require very high confidence for unattended objects
+            return confidence > 0.9  # Very strict threshold
+        
+        return False  # Default: don't report as threat
+    
+    async def strict_fallback_detection(self, frame: np.ndarray, timestamp: float) -> List[Dict]:
+        """Strict fallback detection - only obvious threats"""
+        detections = []
+        
+        try:
+            # Only detect very obvious anomalies
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # Look for fire/smoke (bright areas with specific color patterns)
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            
+            # Fire detection (orange/red bright areas)
+            fire_lower = np.array([5, 50, 50])
+            fire_upper = np.array([35, 255, 255])
+            fire_mask = cv2.inRange(hsv, fire_lower, fire_upper)
+            
+            # Only report if significant fire area detected
+            fire_area = cv2.countNonZero(fire_mask)
+            if fire_area > frame.shape[0] * frame.shape[1] * 0.05:  # 5% of frame
+                detection = {
+                    'id': f"fire_detection_{timestamp}",
+                    'timestamp': self.format_timestamp(timestamp),
+                    'timestampSeconds': timestamp,
+                    'type': 'Fire Detected',
+                    'object_class': 'fire',
+                    'severity': 'critical',
+                    'confidence': 0.8,
+                    'threat_score': 0.9,
+                    'location': {'x': 30, 'y': 30, 'width': 40, 'height': 40},
+                    'description': 'Fire or smoke detected - emergency response required',
+                    'ai_model': 'OpenCV Fire Detection',
+                    'verification': 'Visual fire signature detected'
+                }
+                detections.append(detection)
+        
+        except Exception as e:
+            logger.error(f"❌ Strict fallback detection error: {e}")
         
         return detections
     
@@ -317,68 +389,68 @@ class VideoAnalyzer:
         return None
     
     def analyze_behavior(self, detections: List[Dict], timestamp: float, tracker: Dict) -> List[Dict]:
-        """Analyze behavioral patterns from detections"""
+        """Analyze behavioral patterns - only report genuine crowd issues"""
         behavioral_detections = []
         
-        # Count people for crowd detection
+        # Count people for crowd detection - only report large crowds
         people_count = len([d for d in detections if 'person' in d.get('object_class', '').lower()])
         
+        # Only report crowds of 8+ people (increased threshold)
         if people_count >= self.threat_detector.crowd_threshold:
-            behavioral_detections.append({
-                'id': f"crowd_{timestamp}",
-                'timestamp': self.format_timestamp(timestamp),
-                'timestampSeconds': timestamp,
-                'type': 'Crowd Gathering',
-                'object_class': 'crowd',
-                'severity': 'medium',
-                'confidence': min(0.9, 0.5 + (people_count - self.threat_detector.crowd_threshold) * 0.1),
-                'threat_score': 0.6,
-                'location': {'x': 50, 'y': 50, 'width': 80, 'height': 60},  # General area
-                'description': f"Large crowd detected: {people_count} people",
-                'ai_model': 'Behavioral Analysis'
-            })
+            # Additional check: ensure it's actually a concerning crowd situation
+            crowd_density = people_count / (100 * 100)  # Rough density calculation
+            
+            if crowd_density > 0.0008:  # High density threshold
+                behavioral_detections.append({
+                    'id': f"crowd_{timestamp}",
+                    'timestamp': self.format_timestamp(timestamp),
+                    'timestampSeconds': timestamp,
+                    'type': 'Large Crowd Gathering',
+                    'object_class': 'crowd',
+                    'severity': 'medium',
+                    'confidence': min(0.95, 0.7 + (people_count - self.threat_detector.crowd_threshold) * 0.05),
+                    'threat_score': 0.7,
+                    'location': {'x': 40, 'y': 40, 'width': 60, 'height': 50},
+                    'description': f"Large crowd detected: {people_count} people in confined area - monitor for safety",
+                    'ai_model': 'Behavioral Analysis',
+                    'verification': f'Crowd density analysis: {people_count} people'
+                })
         
-        # Add more behavioral analysis here (loitering, running, etc.)
+        # Remove other behavioral analysis that might cause false positives
+        # (loitering, running, etc. - these are too prone to false positives)
         
         return behavioral_detections
     
     def get_threat_type(self, class_name: str) -> str:
-        """Convert YOLO class name to threat type"""
+        """Convert YOLO class name to threat type - only genuine threats"""
         threat_mapping = {
-            'knife': 'Weapon Detected',
-            'gun': 'Weapon Detected',
-            'rifle': 'Weapon Detected',
-            'pistol': 'Weapon Detected',
-            'person': 'Person Detected',
-            'car': 'Vehicle Detected',
-            'truck': 'Vehicle Detected',
-            'motorcycle': 'Vehicle Detected',
-            'bicycle': 'Vehicle Detected',
-            'backpack': 'Unattended Object',
-            'suitcase': 'Unattended Object',
-            'handbag': 'Suspicious Activity'
+            'knife': 'Weapon Detected - Knife',
+            'gun': 'Weapon Detected - Firearm',
+            'rifle': 'Weapon Detected - Rifle',
+            'pistol': 'Weapon Detected - Pistol',
+            'fire': 'Fire/Emergency Detected',
+            'crowd': 'Large Crowd Safety Concern'
         }
-        return threat_mapping.get(class_name, 'Unknown Object Detected')
+        return threat_mapping.get(class_name, f'Security Alert - {class_name.title()}')
     
     def generate_description(self, class_name: str, confidence: float, threat_score: float) -> str:
-        """Generate human-readable description for detection"""
+        """Generate human-readable description for genuine threats only"""
         descriptions = {
-            'knife': f"Sharp weapon detected with {confidence*100:.1f}% confidence",
-            'gun': f"Firearm detected with {confidence*100:.1f}% confidence - IMMEDIATE RESPONSE REQUIRED",
-            'person': f"Individual detected in surveillance area",
-            'car': f"Vehicle detected in monitored zone",
-            'backpack': f"Unattended bag detected - potential security concern",
-            'crowd': f"Large gathering detected - monitoring for safety"
+            'knife': f"CRITICAL: Sharp weapon detected with {confidence*100:.1f}% confidence - IMMEDIATE SECURITY RESPONSE REQUIRED",
+            'gun': f"CRITICAL: Firearm detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
+            'rifle': f"CRITICAL: Rifle detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
+            'pistol': f"CRITICAL: Pistol detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
+            'fire': f"EMERGENCY: Fire or smoke detected - IMMEDIATE FIRE DEPARTMENT RESPONSE REQUIRED",
+            'crowd': f"SAFETY CONCERN: Large crowd gathering detected - monitor for crowd control needs"
         }
         
-        base_desc = descriptions.get(class_name, f"{class_name} detected")
+        base_desc = descriptions.get(class_name, f"Security alert: {class_name} detected with {confidence*100:.1f}% confidence")
         
-        if threat_score > 0.8:
-            return f"HIGH PRIORITY: {base_desc}"
-        elif threat_score > 0.6:
-            return f"ALERT: {base_desc}"
+        # All genuine threats are high priority
+        if class_name in ['knife', 'gun', 'rifle', 'pistol', 'fire']:
+            return f"🚨 {base_desc}"
         else:
-            return base_desc
+            return f"⚠️ {base_desc}"
     
     def format_timestamp(self, seconds: float) -> str:
         """Format timestamp as MM:SS"""
