@@ -19,7 +19,9 @@ const FALLBACK_CONFIG = {
 };
 
 // Auto-detect environment and start with appropriate config
-export let API_CONFIG = DEVELOPMENT_CONFIG; // Force local development for now
+export let API_CONFIG = window.location.hostname === 'localhost' 
+  ? DEVELOPMENT_CONFIG 
+  : PRODUCTION_CONFIG;
 
 // Helper functions with fallback support
 export const getApiUrl = (endpoint) => {
