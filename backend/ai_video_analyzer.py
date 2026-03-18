@@ -24,30 +24,38 @@ class ThreatDetector:
     def __init__(self):
         self.model = None
         self.threat_classes = {
-            # Only genuine weapons and dangerous objects
+            # Weapons and dangerous objects
             'knife': {'severity': 'critical', 'threat_level': 0.95, 'min_confidence': 0.8},
             'gun': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
             'rifle': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
             'pistol': {'severity': 'critical', 'threat_level': 0.98, 'min_confidence': 0.85},
             
-            # Only unattended objects (not carried items)
+            # Vehicles and accidents
+            'car': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.7, 'accident_detection': True},
+            'truck': {'severity': 'high', 'threat_level': 0.8, 'min_confidence': 0.75, 'accident_detection': True},
+            'motorcycle': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.7, 'accident_detection': True},
+            'bus': {'severity': 'high', 'threat_level': 0.8, 'min_confidence': 0.75, 'accident_detection': True},
+            
+            # Objects that could be unattended
             'suitcase': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.75, 'requires_unattended': True},
             'backpack': {'severity': 'low', 'threat_level': 0.3, 'min_confidence': 0.8, 'requires_unattended': True},
             
-            # Vehicles only in restricted pedestrian areas
-            'car': {'severity': 'medium', 'threat_level': 0.7, 'min_confidence': 0.85, 'context_required': True},
-            'truck': {'severity': 'high', 'threat_level': 0.8, 'min_confidence': 0.85, 'context_required': True},
-            'motorcycle': {'severity': 'medium', 'threat_level': 0.6, 'min_confidence': 0.8, 'context_required': True},
-            
-            # People - only for crowd analysis, not individual detection
-            'person': {'severity': 'low', 'threat_level': 0.1, 'min_confidence': 0.9, 'crowd_only': True},
+            # People for crowd and emergency analysis
+            'person': {'severity': 'low', 'threat_level': 0.1, 'min_confidence': 0.8, 'emergency_context': True},
         }
         
-        # Strict thresholds to prevent false positives
-        self.crowd_threshold = 8  # Increased from 5 - only large crowds
-        self.loitering_time = 60  # Increased to 60 seconds
-        self.unattended_time = 45  # Objects must be unattended for 45+ seconds
-        self.restricted_zones = []  # Define restricted areas for vehicles
+        # Enhanced thresholds for accident detection
+        self.crowd_threshold = 8  # Large crowds
+        self.accident_indicators = {
+            'smoke_threshold': 0.05,  # 5% of frame
+            'fire_threshold': 0.03,   # 3% of frame
+            'debris_threshold': 0.08, # 8% of frame
+            'speed_anomaly': 20,      # Sudden speed changes
+        }
+        
+        # Emergency detection parameters
+        self.emergency_keywords = ['accident', 'crash', 'fire', 'smoke', 'emergency', 'collision']
+        self.track_vehicles_for_accidents = True
         
         self.initialize_model()
     
@@ -240,62 +248,243 @@ class VideoAnalyzer:
         
         # Weapons are always threats if confidence is high
         if class_name in ['knife', 'gun', 'rifle', 'pistol']:
-            return confidence > 0.85  # Very high threshold for weapons
+            return confidence > 0.85
         
-        # People - only report for crowd analysis
+        # Vehicle accident detection - analyze context
+        if class_name in ['car', 'truck', 'motorcycle', 'bus']:
+            return self.detect_vehicle_emergency(frame, x1, y1, x2, y2, confidence)
+        
+        # People - check for emergency situations
         if class_name == 'person':
-            return False  # Don't report individual people as threats
+            return self.detect_person_emergency(frame, x1, y1, x2, y2, confidence)
         
-        # Vehicles - only in pedestrian areas or restricted zones
-        if class_name in ['car', 'truck', 'motorcycle']:
-            # Check if vehicle is in a restricted pedestrian area
-            # For now, assume normal traffic areas are not threats
-            return False  # Don't report normal vehicle traffic
-        
-        # Bags/objects - only if unattended (would need tracking across frames)
+        # Bags/objects - check if genuinely unattended
         if class_name in ['backpack', 'suitcase']:
-            # For now, require very high confidence for unattended objects
-            return confidence > 0.9  # Very strict threshold
+            return confidence > 0.85  # Lower threshold, let context decide
         
-        return False  # Default: don't report as threat
+        return False
+    
+    def detect_vehicle_emergency(self, frame: np.ndarray, x1: float, y1: float, x2: float, y2: float, confidence: float) -> bool:
+        """Detect if vehicles are involved in accidents or emergencies"""
+        
+        # Extract vehicle region
+        vehicle_region = frame[int(y1):int(y2), int(x1):int(x2)]
+        if vehicle_region.size == 0:
+            return False
+        
+        # Convert to different color spaces for analysis
+        hsv_region = cv2.cvtColor(vehicle_region, cv2.COLOR_BGR2HSV)
+        
+        # Detect fire/smoke around vehicle
+        # Fire detection (orange/red/yellow)
+        fire_lower1 = np.array([0, 50, 50])    # Red
+        fire_upper1 = np.array([10, 255, 255])
+        fire_lower2 = np.array([15, 50, 50])   # Orange/Yellow
+        fire_upper2 = np.array([35, 255, 255])
+        
+        fire_mask1 = cv2.inRange(hsv_region, fire_lower1, fire_upper1)
+        fire_mask2 = cv2.inRange(hsv_region, fire_lower2, fire_upper2)
+        fire_mask = cv2.bitwise_or(fire_mask1, fire_mask2)
+        
+        # Smoke detection (gray/white areas)
+        smoke_lower = np.array([0, 0, 100])    # Light gray to white
+        smoke_upper = np.array([180, 30, 255])
+        smoke_mask = cv2.inRange(hsv_region, smoke_lower, smoke_upper)
+        
+        # Calculate fire and smoke percentages
+        total_pixels = vehicle_region.shape[0] * vehicle_region.shape[1]
+        fire_percentage = cv2.countNonZero(fire_mask) / total_pixels
+        smoke_percentage = cv2.countNonZero(smoke_mask) / total_pixels
+        
+        # Check surrounding area for smoke/fire (expand region)
+        expand_factor = 1.5
+        expanded_x1 = max(0, int(x1 - (x2-x1) * 0.25))
+        expanded_y1 = max(0, int(y1 - (y2-y1) * 0.25))
+        expanded_x2 = min(frame.shape[1], int(x2 + (x2-x1) * 0.25))
+        expanded_y2 = min(frame.shape[0], int(y2 + (y2-y1) * 0.25))
+        
+        expanded_region = frame[expanded_y1:expanded_y2, expanded_x1:expanded_x2]
+        if expanded_region.size > 0:
+            expanded_hsv = cv2.cvtColor(expanded_region, cv2.COLOR_BGR2HSV)
+            expanded_smoke_mask = cv2.inRange(expanded_hsv, smoke_lower, smoke_upper)
+            expanded_total = expanded_region.shape[0] * expanded_region.shape[1]
+            expanded_smoke_percentage = cv2.countNonZero(expanded_smoke_mask) / expanded_total
+            
+            # If significant smoke in expanded area, it's likely an accident
+            if expanded_smoke_percentage > 0.15:  # 15% smoke in surrounding area
+                return True
+        
+        # Emergency thresholds
+        if fire_percentage > 0.02:  # 2% fire
+            return True
+        if smoke_percentage > 0.08:  # 8% smoke
+            return True
+        
+        # Check for vehicle orientation anomalies (overturned, sideways)
+        # This is a simplified check - in production you'd use more sophisticated methods
+        gray_region = cv2.cvtColor(vehicle_region, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray_region, 50, 150)
+        
+        # Look for unusual edge patterns that might indicate damage/accident
+        edge_density = cv2.countNonZero(edges) / total_pixels
+        if edge_density > 0.3:  # High edge density might indicate damage/debris
+            return True
+        
+        return False
+    
+    def detect_person_emergency(self, frame: np.ndarray, x1: float, y1: float, x2: float, y2: float, confidence: float) -> bool:
+        """Detect if people are in emergency situations"""
+        
+        # For now, don't report individual people unless in specific emergency contexts
+        # This could be enhanced to detect:
+        # - People lying down (potential injury)
+        # - People running (potential panic)
+        # - People in dangerous areas
+        
+        return False  # Conservative approach for now
     
     async def strict_fallback_detection(self, frame: np.ndarray, timestamp: float) -> List[Dict]:
-        """Strict fallback detection - only obvious threats"""
+        """Enhanced fallback detection for accidents and emergencies"""
         detections = []
         
         try:
-            # Only detect very obvious anomalies
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Look for fire/smoke (bright areas with specific color patterns)
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             
-            # Fire detection (orange/red bright areas)
-            fire_lower = np.array([5, 50, 50])
-            fire_upper = np.array([35, 255, 255])
-            fire_mask = cv2.inRange(hsv, fire_lower, fire_upper)
+            # Enhanced fire/smoke detection
+            # Fire detection (multiple ranges for better coverage)
+            fire_lower1 = np.array([0, 50, 50])    # Red
+            fire_upper1 = np.array([10, 255, 255])
+            fire_lower2 = np.array([15, 50, 50])   # Orange
+            fire_upper2 = np.array([25, 255, 255])
+            fire_lower3 = np.array([25, 50, 50])   # Yellow
+            fire_upper3 = np.array([35, 255, 255])
             
-            # Only report if significant fire area detected
+            fire_mask1 = cv2.inRange(hsv, fire_lower1, fire_upper1)
+            fire_mask2 = cv2.inRange(hsv, fire_lower2, fire_upper2)
+            fire_mask3 = cv2.inRange(hsv, fire_lower3, fire_upper3)
+            fire_mask = cv2.bitwise_or(fire_mask1, cv2.bitwise_or(fire_mask2, fire_mask3))
+            
+            # Smoke detection (gray/white areas with low saturation)
+            smoke_lower = np.array([0, 0, 100])    # Light areas
+            smoke_upper = np.array([180, 50, 255]) # Low saturation, high value
+            smoke_mask = cv2.inRange(hsv, smoke_lower, smoke_upper)
+            
+            # Calculate coverage
+            total_pixels = frame.shape[0] * frame.shape[1]
             fire_area = cv2.countNonZero(fire_mask)
-            if fire_area > frame.shape[0] * frame.shape[1] * 0.05:  # 5% of frame
-                detection = {
-                    'id': f"fire_detection_{timestamp}",
-                    'timestamp': self.format_timestamp(timestamp),
-                    'timestampSeconds': timestamp,
-                    'type': 'Fire Detected',
-                    'object_class': 'fire',
-                    'severity': 'critical',
-                    'confidence': 0.8,
-                    'threat_score': 0.9,
-                    'location': {'x': 30, 'y': 30, 'width': 40, 'height': 40},
-                    'description': 'Fire or smoke detected - emergency response required',
-                    'ai_model': 'OpenCV Fire Detection',
-                    'verification': 'Visual fire signature detected'
-                }
-                detections.append(detection)
+            smoke_area = cv2.countNonZero(smoke_mask)
+            
+            fire_percentage = fire_area / total_pixels
+            smoke_percentage = smoke_area / total_pixels
+            
+            # Detect fire
+            if fire_percentage > 0.01:  # 1% of frame
+                # Find fire regions
+                contours, _ = cv2.findContours(fire_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area > 500:  # Significant fire area
+                        x, y, w, h = cv2.boundingRect(contour)
+                        
+                        detection = {
+                            'id': f"fire_detection_{timestamp}_{len(detections)}",
+                            'timestamp': self.format_timestamp(timestamp),
+                            'timestampSeconds': timestamp,
+                            'type': 'Fire Emergency Detected',
+                            'object_class': 'fire',
+                            'severity': 'critical',
+                            'confidence': min(0.95, 0.7 + fire_percentage * 10),
+                            'threat_score': 0.95,
+                            'location': {
+                                'x': (x / frame.shape[1]) * 100,
+                                'y': (y / frame.shape[0]) * 100,
+                                'width': (w / frame.shape[1]) * 100,
+                                'height': (h / frame.shape[0]) * 100
+                            },
+                            'description': f'🚨 CRITICAL: Fire detected - Emergency response required immediately',
+                            'ai_model': 'OpenCV Fire Detection',
+                            'verification': f'Fire coverage: {fire_percentage*100:.1f}% of frame'
+                        }
+                        detections.append(detection)
+            
+            # Detect smoke (potential accident indicator)
+            if smoke_percentage > 0.08:  # 8% of frame
+                # Find smoke regions
+                contours, _ = cv2.findContours(smoke_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area > 1000:  # Significant smoke area
+                        x, y, w, h = cv2.boundingRect(contour)
+                        
+                        detection = {
+                            'id': f"smoke_detection_{timestamp}_{len(detections)}",
+                            'timestamp': self.format_timestamp(timestamp),
+                            'timestampSeconds': timestamp,
+                            'type': 'Smoke/Accident Detected',
+                            'object_class': 'smoke',
+                            'severity': 'high',
+                            'confidence': min(0.90, 0.6 + smoke_percentage * 5),
+                            'threat_score': 0.85,
+                            'location': {
+                                'x': (x / frame.shape[1]) * 100,
+                                'y': (y / frame.shape[0]) * 100,
+                                'width': (w / frame.shape[1]) * 100,
+                                'height': (h / frame.shape[0]) * 100
+                            },
+                            'description': f'⚠️ HIGH ALERT: Smoke detected - Possible accident or fire',
+                            'ai_model': 'OpenCV Smoke Detection',
+                            'verification': f'Smoke coverage: {smoke_percentage*100:.1f}% of frame'
+                        }
+                        detections.append(detection)
+            
+            # Enhanced vehicle accident detection
+            # Look for unusual vehicle orientations or debris
+            edges = cv2.Canny(gray, 50, 150)
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 2000:  # Large objects
+                    x, y, w, h = cv2.boundingRect(contour)
+                    aspect_ratio = w / h if h > 0 else 0
+                    
+                    # Check if this could be a vehicle in distress
+                    # Vehicles typically have certain aspect ratios
+                    if 0.5 < aspect_ratio < 4.0 and area > 5000:
+                        # Check surrounding area for smoke/fire
+                        roi = frame[max(0, y-20):min(frame.shape[0], y+h+20), 
+                                   max(0, x-20):min(frame.shape[1], x+w+20)]
+                        
+                        if roi.size > 0:
+                            roi_hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+                            roi_smoke = cv2.inRange(roi_hsv, smoke_lower, smoke_upper)
+                            roi_smoke_percentage = cv2.countNonZero(roi_smoke) / (roi.shape[0] * roi.shape[1])
+                            
+                            if roi_smoke_percentage > 0.12:  # 12% smoke around vehicle
+                                detection = {
+                                    'id': f"vehicle_accident_{timestamp}_{len(detections)}",
+                                    'timestamp': self.format_timestamp(timestamp),
+                                    'timestampSeconds': timestamp,
+                                    'type': 'Vehicle Accident Detected',
+                                    'object_class': 'accident',
+                                    'severity': 'high',
+                                    'confidence': min(0.88, 0.6 + roi_smoke_percentage * 3),
+                                    'threat_score': 0.80,
+                                    'location': {
+                                        'x': (x / frame.shape[1]) * 100,
+                                        'y': (y / frame.shape[0]) * 100,
+                                        'width': (w / frame.shape[1]) * 100,
+                                        'height': (h / frame.shape[0]) * 100
+                                    },
+                                    'description': f'🚨 EMERGENCY: Vehicle accident with smoke - Emergency services required',
+                                    'ai_model': 'OpenCV Accident Detection',
+                                    'verification': f'Vehicle with {roi_smoke_percentage*100:.1f}% surrounding smoke'
+                                }
+                                detections.append(detection)
         
         except Exception as e:
-            logger.error(f"❌ Strict fallback detection error: {e}")
+            logger.error(f"❌ Enhanced fallback detection error: {e}")
         
         return detections
     
@@ -422,33 +611,53 @@ class VideoAnalyzer:
         return behavioral_detections
     
     def get_threat_type(self, class_name: str) -> str:
-        """Convert YOLO class name to threat type - only genuine threats"""
+        """Convert YOLO class name to threat type - comprehensive coverage"""
         threat_mapping = {
             'knife': 'Weapon Detected - Knife',
             'gun': 'Weapon Detected - Firearm',
             'rifle': 'Weapon Detected - Rifle',
             'pistol': 'Weapon Detected - Pistol',
-            'fire': 'Fire/Emergency Detected',
-            'crowd': 'Large Crowd Safety Concern'
+            'car': 'Vehicle Accident/Emergency',
+            'truck': 'Vehicle Accident/Emergency',
+            'motorcycle': 'Vehicle Accident/Emergency',
+            'bus': 'Vehicle Accident/Emergency',
+            'fire': 'Fire Emergency Detected',
+            'smoke': 'Smoke/Accident Detected',
+            'accident': 'Vehicle Accident Detected',
+            'crowd': 'Large Crowd Safety Concern',
+            'person': 'Person in Emergency Situation',
+            'backpack': 'Unattended Suspicious Object',
+            'suitcase': 'Unattended Suspicious Object'
         }
         return threat_mapping.get(class_name, f'Security Alert - {class_name.title()}')
     
     def generate_description(self, class_name: str, confidence: float, threat_score: float) -> str:
-        """Generate human-readable description for genuine threats only"""
+        """Generate human-readable description for comprehensive threat detection"""
         descriptions = {
             'knife': f"CRITICAL: Sharp weapon detected with {confidence*100:.1f}% confidence - IMMEDIATE SECURITY RESPONSE REQUIRED",
             'gun': f"CRITICAL: Firearm detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
             'rifle': f"CRITICAL: Rifle detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
             'pistol': f"CRITICAL: Pistol detected with {confidence*100:.1f}% confidence - IMMEDIATE ARMED RESPONSE REQUIRED",
-            'fire': f"EMERGENCY: Fire or smoke detected - IMMEDIATE FIRE DEPARTMENT RESPONSE REQUIRED",
-            'crowd': f"SAFETY CONCERN: Large crowd gathering detected - monitor for crowd control needs"
+            'fire': f"EMERGENCY: Fire detected with {confidence*100:.1f}% confidence - IMMEDIATE FIRE DEPARTMENT RESPONSE REQUIRED",
+            'smoke': f"HIGH ALERT: Smoke detected with {confidence*100:.1f}% confidence - Possible fire or accident",
+            'accident': f"EMERGENCY: Vehicle accident detected with {confidence*100:.1f}% confidence - Emergency services required",
+            'car': f"ALERT: Vehicle emergency situation detected with {confidence*100:.1f}% confidence",
+            'truck': f"ALERT: Truck emergency situation detected with {confidence*100:.1f}% confidence",
+            'motorcycle': f"ALERT: Motorcycle emergency detected with {confidence*100:.1f}% confidence",
+            'bus': f"ALERT: Bus emergency situation detected with {confidence*100:.1f}% confidence",
+            'crowd': f"SAFETY CONCERN: Large crowd gathering detected - monitor for crowd control needs",
+            'person': f"Person in potential emergency situation - requires attention",
+            'backpack': f"Unattended suspicious object detected - security check required",
+            'suitcase': f"Unattended luggage detected - security verification needed"
         }
         
         base_desc = descriptions.get(class_name, f"Security alert: {class_name} detected with {confidence*100:.1f}% confidence")
         
-        # All genuine threats are high priority
+        # Prioritize by severity
         if class_name in ['knife', 'gun', 'rifle', 'pistol', 'fire']:
             return f"🚨 {base_desc}"
+        elif class_name in ['smoke', 'accident', 'car', 'truck', 'motorcycle', 'bus']:
+            return f"⚠️ {base_desc}"
         else:
             return f"⚠️ {base_desc}"
     
