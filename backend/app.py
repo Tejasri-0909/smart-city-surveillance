@@ -227,6 +227,13 @@ except ImportError as e:
     logger.warning(f"Incident routes not available: {e}")
 
 try:
+    from routes.video_routes import router as video_router
+    app.include_router(video_router, prefix="/video", tags=["Video Analysis"])
+    logger.info("✅ Real AI video analysis routes loaded")
+except ImportError as e:
+    logger.warning(f"Video routes not available: {e}")
+
+try:
     from routes.realtime_routes import router as realtime_router
     app.include_router(realtime_router, prefix="/realtime", tags=["Real-time"])
 except ImportError as e:

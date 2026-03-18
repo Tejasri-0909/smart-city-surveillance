@@ -1,132 +1,306 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+"""
+Video Analysis API Routes
+Handles video upload and real AI analysis using YOLO
+"""
+
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
-import uuid
+import tempfile
 import os
+import logging
+from pathlib import Path
+import aiofiles
+from typing import Dict, Any
+import uuid
 from datetime import datetime
-import asyncio
+
+from ai_video_analyzer import analyze_uploaded_video
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Simulated AI detection results
-def simulate_ai_detection(filename: str):
-    """Simulate AI detection analysis on uploaded video"""
-    
-    # Simulate processing time
-    import time
-    time.sleep(2)
-    
-    # Return mock detection results
-    detections = [
-        {
-            "timestamp": "00:15",
-            "type": "Suspicious Activity",
-            "confidence": 0.87,
-            "location": {"x": 45, "y": 30, "width": 20, "height": 25},
-            "description": "Unusual movement pattern detected"
-        },
-        {
-            "timestamp": "00:32", 
-            "type": "Weapon Detected",
-            "confidence": 0.94,
-            "location": {"x": 60, "y": 40, "width": 15, "height": 20},
-            "description": "Potential weapon object identified"
-        }
-    ]
-    
-    summary = {
-        "total_detections": len(detections),
-        "high_risk_events": len([d for d in detections if d["confidence"] > 0.9]),
-        "processing_time": "2.3s",
-        "video_duration": "03:45",
-        "resolution": "1920x1080"
-    }
-    
-    return {
-        "detections": detections,
-        "summary": summary,
-        "analysis_id": str(uuid.uuid4()),
-        "processed_at": datetime.now().isoformat()
-    }
+# Store analysis results temporarily (in production, use Redis or database)
+analysis_results = {}
 
-
-@router.post("/upload")
-async def upload_video(file: UploadFile = File(...)):
-    """Upload video file for AI analysis"""
+@router.post("/upload-and-analyze")
+async def upload_and_analyze_video(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...)
+) -> Dict[str, Any]:
+    """
+    Upload video file and perform real AI analysis
+    
+    Args:
+        file: Uploaded video file
+        
+    Returns:
+        Analysis job ID and status
+    """
     
     # Validate file type
-    if not file.content_type.startswith('video/'):
-        raise HTTPException(status_code=400, detail="File must be a video")
+    allowed_types = ['video/mp4', 'video/avi', 'video/mov', 'video/webm', 'video/quicktime']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {file.content_type}. Supported: {', '.join(allowed_types)}"
+        )
     
-    # Generate unique filename
-    file_id = str(uuid.uuid4())
-    file_extension = os.path.splitext(file.filename)[1]
-    filename = f"{file_id}{file_extension}"
+    # Validate file size (max 100MB)
+    max_size = 100 * 1024 * 1024  # 100MB
+    file_size = 0
     
-    # In a real implementation, you would save the file
-    # For demo purposes, we'll just simulate the upload
-    
-    return {
-        "message": "Video uploaded successfully",
-        "file_id": file_id,
-        "filename": filename,
-        "size": file.size if hasattr(file, 'size') else 0,
-        "uploaded_at": datetime.now().isoformat()
-    }
-
-
-@router.post("/analyze/{file_id}")
-def analyze_video(file_id: str):
-    """Analyze uploaded video with AI detection"""
-    
-    # In a real implementation, you would:
-    # 1. Retrieve the video file
-    # 2. Run AI detection models
-    # 3. Store results in database
-    
-    # For demo, return simulated results
-    results = simulate_ai_detection(file_id)
-    
-    return {
-        "message": "Video analysis completed",
-        "file_id": file_id,
-        "results": results
-    }
-
-
-@router.get("/analysis/{analysis_id}")
-def get_analysis_results(analysis_id: str):
-    """Get analysis results by ID"""
-    
-    # In a real implementation, retrieve from database
-    # For demo, return mock data
-    
-    return {
-        "analysis_id": analysis_id,
-        "status": "completed",
-        "results": simulate_ai_detection(analysis_id)
-    }
-
-
-@router.get("/uploads")
-def list_uploads():
-    """List all uploaded videos"""
-    
-    # Mock data for demo
-    uploads = [
-        {
-            "file_id": "video-001",
-            "filename": "security_footage_001.mp4",
-            "uploaded_at": "2024-03-16T10:30:00Z",
-            "size": 15728640,
-            "status": "analyzed"
-        },
-        {
-            "file_id": "video-002", 
-            "filename": "incident_recording.avi",
-            "uploaded_at": "2024-03-16T09:15:00Z",
-            "size": 25165824,
-            "status": "processing"
+    try:
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
+        
+        # Create temporary file
+        temp_dir = tempfile.gettempdir()
+        file_extension = Path(file.filename).suffix
+        temp_file_path = os.path.join(temp_dir, f"video_{job_id}{file_extension}")
+        
+        logger.info(f"📹 Uploading video: {file.filename} (Job ID: {job_id})")
+        
+        # Save uploaded file
+        async with aiofiles.open(temp_file_path, 'wb') as temp_file:
+            while chunk := await file.read(8192):  # Read in 8KB chunks
+                file_size += len(chunk)
+                
+                # Check file size limit
+                if file_size > max_size:
+                    os.unlink(temp_file_path)  # Delete partial file
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {max_size // (1024*1024)}MB"
+                    )
+                
+                await temp_file.write(chunk)
+        
+        logger.info(f"✅ Video uploaded successfully: {file_size / (1024*1024):.2f}MB")
+        
+        # Initialize analysis status
+        analysis_results[job_id] = {
+            'status': 'processing',
+            'progress': 0,
+            'message': 'Starting AI analysis...',
+            'filename': file.filename,
+            'file_size': file_size,
+            'started_at': datetime.now().isoformat(),
+            'results': None
         }
-    ]
+        
+        # Start background analysis
+        background_tasks.add_task(perform_analysis, job_id, temp_file_path)
+        
+        return {
+            'job_id': job_id,
+            'status': 'processing',
+            'message': 'Video uploaded successfully. AI analysis started.',
+            'filename': file.filename,
+            'file_size_mb': round(file_size / (1024*1024), 2)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Video upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@router.get("/analysis-status/{job_id}")
+async def get_analysis_status(job_id: str) -> Dict[str, Any]:
+    """
+    Get analysis status and results
     
-    return {"uploads": uploads}
+    Args:
+        job_id: Analysis job ID
+        
+    Returns:
+        Analysis status and results
+    """
+    
+    if job_id not in analysis_results:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    
+    result = analysis_results[job_id]
+    
+    return {
+        'job_id': job_id,
+        'status': result['status'],
+        'progress': result['progress'],
+        'message': result['message'],
+        'filename': result['filename'],
+        'started_at': result['started_at'],
+        'completed_at': result.get('completed_at'),
+        'results': result['results']
+    }
+
+@router.post("/analyze-video")
+async def analyze_video_direct(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    Direct video analysis (synchronous) - for smaller files
+    
+    Args:
+        file: Uploaded video file
+        
+    Returns:
+        Complete analysis results
+    """
+    
+    # Validate file type and size
+    allowed_types = ['video/mp4', 'video/avi', 'video/mov', 'video/webm']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {file.content_type}"
+        )
+    
+    # Size limit for direct analysis (25MB)
+    max_size = 25 * 1024 * 1024
+    
+    try:
+        # Create temporary file
+        temp_dir = tempfile.gettempdir()
+        file_extension = Path(file.filename).suffix
+        temp_file_path = os.path.join(temp_dir, f"direct_analysis_{uuid.uuid4()}{file_extension}")
+        
+        logger.info(f"🔍 Direct analysis for: {file.filename}")
+        
+        # Save file
+        file_size = 0
+        async with aiofiles.open(temp_file_path, 'wb') as temp_file:
+            while chunk := await file.read(8192):
+                file_size += len(chunk)
+                
+                if file_size > max_size:
+                    os.unlink(temp_file_path)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large for direct analysis. Use /upload-and-analyze for files > 25MB"
+                    )
+                
+                await temp_file.write(chunk)
+        
+        # Perform analysis
+        results = await analyze_uploaded_video(temp_file_path)
+        
+        # Cleanup
+        os.unlink(temp_file_path)
+        
+        logger.info(f"✅ Direct analysis complete: {len(results.get('detections', []))} detections")
+        
+        return {
+            'status': 'completed',
+            'filename': file.filename,
+            'file_size_mb': round(file_size / (1024*1024), 2),
+            'analysis_results': results
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Direct analysis failed: {e}")
+        
+        # Cleanup on error
+        if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+async def perform_analysis(job_id: str, video_path: str):
+    """
+    Background task to perform video analysis
+    
+    Args:
+        job_id: Analysis job ID
+        video_path: Path to video file
+    """
+    
+    try:
+        logger.info(f"🤖 Starting AI analysis for job: {job_id}")
+        
+        # Update status
+        analysis_results[job_id].update({
+            'status': 'analyzing',
+            'progress': 10,
+            'message': 'Initializing AI models...'
+        })
+        
+        # Perform real AI analysis
+        results = await analyze_uploaded_video(video_path)
+        
+        # Update final results
+        analysis_results[job_id].update({
+            'status': 'completed',
+            'progress': 100,
+            'message': 'Analysis completed successfully',
+            'completed_at': datetime.now().isoformat(),
+            'results': results
+        })
+        
+        logger.info(f"✅ Analysis completed for job: {job_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Analysis failed for job {job_id}: {e}")
+        
+        # Update error status
+        analysis_results[job_id].update({
+            'status': 'failed',
+            'progress': 0,
+            'message': f'Analysis failed: {str(e)}',
+            'completed_at': datetime.now().isoformat(),
+            'error': str(e)
+        })
+    
+    finally:
+        # Cleanup temporary file
+        if os.path.exists(video_path):
+            os.unlink(video_path)
+            logger.info(f"🗑️ Cleaned up temporary file: {video_path}")
+
+@router.get("/supported-formats")
+async def get_supported_formats():
+    """Get list of supported video formats"""
+    return {
+        'supported_formats': [
+            {
+                'format': 'MP4',
+                'mime_type': 'video/mp4',
+                'description': 'Most common format, best compatibility'
+            },
+            {
+                'format': 'AVI',
+                'mime_type': 'video/avi',
+                'description': 'Windows standard format'
+            },
+            {
+                'format': 'MOV',
+                'mime_type': 'video/mov',
+                'description': 'Apple QuickTime format'
+            },
+            {
+                'format': 'WebM',
+                'mime_type': 'video/webm',
+                'description': 'Web-optimized format'
+            }
+        ],
+        'max_file_size': {
+            'direct_analysis': '25MB',
+            'background_analysis': '100MB'
+        },
+        'ai_models': [
+            'YOLOv8 (Primary)',
+            'OpenCV DNN (Fallback)',
+            'Behavioral Analysis'
+        ]
+    }
+
+@router.delete("/analysis/{job_id}")
+async def delete_analysis(job_id: str):
+    """Delete analysis results"""
+    if job_id in analysis_results:
+        del analysis_results[job_id]
+        return {'message': 'Analysis results deleted'}
+    else:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
