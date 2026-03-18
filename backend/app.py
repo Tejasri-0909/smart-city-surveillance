@@ -11,28 +11,70 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Simple WebSocket manager
+# Enhanced WebSocket manager for real-time updates
 class WebSocketManager:
     def __init__(self):
         self.active_connections = []
+        self.connection_info = {}  # Store connection metadata
     
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_id: str = None):
         self.active_connections.append(websocket)
+        if client_id:
+            self.connection_info[websocket] = {"client_id": client_id, "subscriptions": []}
     
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        if websocket in self.connection_info:
+            del self.connection_info[websocket]
     
     def get_connection_count(self):
         return len(self.active_connections)
     
     async def broadcast(self, message: dict):
+        """Broadcast message to all connected clients"""
         if self.active_connections:
             for connection in self.active_connections.copy():
                 try:
                     await connection.send_text(json.dumps(message))
                 except:
                     self.disconnect(connection)
+    
+    async def broadcast_incident_update(self, incident_data: dict):
+        """Broadcast incident updates to all clients"""
+        message = {
+            "type": "incident_update",
+            "data": incident_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def broadcast_camera_update(self, camera_data: dict):
+        """Broadcast camera status updates to all clients"""
+        message = {
+            "type": "camera_update", 
+            "data": camera_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def broadcast_alert(self, alert_data: dict):
+        """Broadcast new alerts to all clients"""
+        message = {
+            "type": "new_alert",
+            "data": alert_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def broadcast_stats_update(self, stats_data: dict):
+        """Broadcast statistics updates to all clients"""
+        message = {
+            "type": "stats_update",
+            "data": stats_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
 
 websocket_manager = WebSocketManager()
 
@@ -80,6 +122,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Health endpoint (required)

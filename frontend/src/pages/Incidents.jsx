@@ -40,10 +40,15 @@ const Incidents = () => {
     setFilteredIncidents(filtered);
   };
 
-  const handleIncidentUpdate = (incidentId, newStatus) => {
-    // Update the incident status in the AlertContext
-    updateIncidentStatus(incidentId, newStatus);
-    console.log(`Incident ${incidentId} status updated to: ${newStatus}`);
+  const handleIncidentUpdate = async (incidentId, newStatus) => {
+    try {
+      // Update the incident status in the AlertContext
+      await updateIncidentStatus(incidentId, newStatus);
+      console.log(`✅ Incident ${incidentId} status updated to: ${newStatus}`);
+    } catch (error) {
+      console.error(`❌ Failed to update incident ${incidentId}:`, error);
+      throw error; // Re-throw so IncidentTable can handle the error
+    }
   };
 
   const exportIncidents = () => {
@@ -166,7 +171,6 @@ const Incidents = () => {
       <div className="incidents-table-section">
         <IncidentTable 
           incidents={filteredIncidents}
-          onIncidentUpdate={handleIncidentUpdate}
         />
       </div>
     </div>

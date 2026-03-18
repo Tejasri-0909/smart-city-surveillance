@@ -4,9 +4,13 @@ import { getApiUrl } from '../config/api';
 import axios from 'axios';
 
 const CameraManagement = () => {
+  console.log('🎥 CameraManagement component rendering...');
+  
   const [cameras, setCameras] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCamera, setEditingCamera] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     camera_id: '',
     location: '',
@@ -17,24 +21,36 @@ const CameraManagement = () => {
   });
 
   useEffect(() => {
+    console.log('🎥 CameraManagement component mounted');
     fetchCameras();
   }, []);
 
   const fetchCameras = async () => {
+    console.log('📡 Fetching cameras...');
+    setLoading(true);
+    setError(null);
+    
     try {
-      const response = await axios.get(getApiUrl('/cameras'));
-      setCameras(response.data.cameras);
+      const apiUrl = getApiUrl('/cameras');
+      console.log('📡 Camera API URL:', apiUrl);
+      
+      const response = await axios.get(apiUrl);
+      console.log('✅ Cameras fetched:', response.data);
+      
+      setCameras(response.data.cameras || []);
     } catch (error) {
-      console.error('Error fetching cameras:', error);
-      // Use sample data for demo
-      const sampleCameras = [
+      console.error('❌ Error fetching cameras:', error);
+      setError(error.message);
+      
+      // Use fallback camera data
+      const fallbackCameras = [
         {
           camera_id: 'CAM001',
           location: 'City Center',
           latitude: 40.7128,
           longitude: -74.0060,
           status: 'active',
-          stream_url: 'rtsp://example.com/stream1'
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4'
         },
         {
           camera_id: 'CAM002',
@@ -42,10 +58,46 @@ const CameraManagement = () => {
           latitude: 40.7589,
           longitude: -73.9851,
           status: 'active',
-          stream_url: 'rtsp://example.com/stream2'
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771935/cam2_euevgq.mp4'
+        },
+        {
+          camera_id: 'CAM003',
+          location: 'Airport Gate',
+          latitude: 40.6892,
+          longitude: -74.1745,
+          status: 'active',
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771955/cam3_sug2zm.mp4'
+        },
+        {
+          camera_id: 'CAM004',
+          location: 'Shopping Mall',
+          latitude: 40.7505,
+          longitude: -73.9934,
+          status: 'active',
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771984/cam4_xexpfj.mp4'
+        },
+        {
+          camera_id: 'CAM005',
+          location: 'Park Entrance',
+          latitude: 40.7829,
+          longitude: -73.9654,
+          status: 'active',
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773773966/Cam5_gefgvz.mp4'
+        },
+        {
+          camera_id: 'CAM006',
+          location: 'Highway Bridge',
+          latitude: 40.7282,
+          longitude: -74.0776,
+          status: 'active',
+          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773774617/Cam6_bwq6kd.mp4'
         }
       ];
-      setCameras(sampleCameras);
+      
+      console.log('📱 Using fallback camera data:', fallbackCameras);
+      setCameras(fallbackCameras);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -130,12 +182,38 @@ const CameraManagement = () => {
     }
   };
 
+  // Simple test render first
+  if (loading) {
+    return (
+      <div className="camera-management">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading cameras...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && cameras.length === 0) {
+    return (
+      <div className="camera-management">
+        <div className="error-container">
+          <h3>Error Loading Cameras</h3>
+          <p>{error}</p>
+          <button className="btn btn-primary" onClick={fetchCameras}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="camera-management">
       <div className="management-header">
         <div>
           <h2>Camera Management</h2>
-          <p>Register and manage CCTV cameras across the surveillance network</p>
+          <p>Register and manage CCTV cameras across the surveillance network ({cameras.length} cameras)</p>
         </div>
         
         <button 

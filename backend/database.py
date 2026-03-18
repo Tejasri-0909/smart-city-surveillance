@@ -1,5 +1,4 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from typing import Dict, List, Optional
 import logging
@@ -26,9 +25,21 @@ incidents_collection = None
 alerts_collection = None
 users_collection = None
 
+# Try to import motor with fallback
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    MOTOR_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Motor not available: {e}")
+    MOTOR_AVAILABLE = False
+
 async def init_database():
     """Initialize database connection with fail-safe"""
     global client, database, cameras_collection, incidents_collection, alerts_collection, users_collection
+    
+    if not MOTOR_AVAILABLE:
+        logger.warning("Motor/MongoDB not available, running in fallback mode")
+        return
     
     try:
         client = AsyncIOMotorClient(MONGODB_URL)
@@ -121,18 +132,21 @@ async def seed_default_data():
             
         # Seed default user
         if users_collection and await users_collection.count_documents({}) == 0:
-            from passlib.context import CryptContext
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            
-            default_user = {
-                "username": "admin",
-                "hashed_password": pwd_context.hash("admin@123"),
-                "email": "admin@smartcity.com",
-                "is_active": True,
-                "created_at": datetime.utcnow()
-            }
-            await users_collection.insert_one(default_user)
-            logger.info("✅ Default admin user created")
+            try:
+                from passlib.context import CryptContext
+                pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                
+                default_user = {
+                    "username": "admin",
+                    "hashed_password": pwd_context.hash("admin@123"),
+                    "email": "admin@smartcity.com",
+                    "is_active": True,
+                    "created_at": datetime.utcnow()
+                }
+                await users_collection.insert_one(default_user)
+                logger.info("✅ Default admin user created")
+            except ImportError:
+                logger.warning("Passlib not available, skipping user creation")
             
     except Exception as e:
         logger.error(f"❌ Error seeding default data: {e}")
@@ -192,7 +206,7 @@ def get_fallback_cameras():
     ]
 
 def get_fallback_incidents():
-    """Return fallback incident data"""
+    """Return fallback incident data with 9 diverse incidents"""
     return [
         {
             "id": "fallback-1",
@@ -219,6 +233,97 @@ def get_fallback_incidents():
             "status": "active",
             "timestamp": datetime.now().isoformat(),
             "description": "Weapon detection alert in main corridor"
+        },
+        {
+            "id": "fallback-3",
+            "_id": "fallback-3",
+            "camera_id": "CAM001",
+            "location": "City Center",
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "incident_type": "Fire Detected",
+            "severity": "high",
+            "status": "resolved",
+            "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
+            "description": "Fire alarm triggered - resolved by emergency services"
+        },
+        {
+            "id": "fallback-4",
+            "_id": "fallback-4",
+            "camera_id": "CAM003",
+            "location": "Airport Gate",
+            "latitude": 40.6892,
+            "longitude": -74.1745,
+            "incident_type": "Unattended Baggage",
+            "severity": "medium",
+            "status": "investigating",
+            "timestamp": (datetime.now() - timedelta(minutes=30)).isoformat(),
+            "description": "Unattended luggage detected at security checkpoint"
+        },
+        {
+            "id": "fallback-5",
+            "_id": "fallback-5",
+            "camera_id": "CAM005",
+            "location": "Park Entrance",
+            "latitude": 40.7829,
+            "longitude": -73.9654,
+            "incident_type": "Vandalism",
+            "severity": "low",
+            "status": "active",
+            "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
+            "description": "Graffiti activity detected on park property"
+        },
+        {
+            "id": "fallback-6",
+            "_id": "fallback-6",
+            "camera_id": "CAM006",
+            "location": "Highway Bridge",
+            "latitude": 40.7282,
+            "longitude": -74.0776,
+            "incident_type": "Traffic Violation",
+            "severity": "medium",
+            "status": "active",
+            "timestamp": (datetime.now() - timedelta(minutes=10)).isoformat(),
+            "description": "Speeding vehicle detected exceeding limit by 25mph"
+        },
+        {
+            "id": "fallback-7",
+            "_id": "fallback-7",
+            "camera_id": "CAM001",
+            "location": "City Center",
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "incident_type": "Crowd Gathering",
+            "severity": "medium",
+            "status": "active",
+            "timestamp": (datetime.now() - timedelta(minutes=5)).isoformat(),
+            "description": "Large crowd gathering detected - monitoring for safety"
+        },
+        {
+            "id": "fallback-8",
+            "_id": "fallback-8",
+            "camera_id": "CAM002",
+            "location": "Metro Station",
+            "latitude": 40.7589,
+            "longitude": -73.9851,
+            "incident_type": "Medical Emergency",
+            "severity": "high",
+            "status": "resolved",
+            "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
+            "description": "Person collapsed on platform - emergency services responded"
+        },
+        {
+            "id": "fallback-9",
+            "_id": "fallback-9",
+            "camera_id": "CAM004",
+            "location": "Shopping Mall",
+            "latitude": 40.7505,
+            "longitude": -73.9934,
+            "incident_type": "Theft Alert",
+            "severity": "medium",
+            "status": "false-alarm",
+            "timestamp": (datetime.now() - timedelta(hours=1, minutes=30)).isoformat(),
+            "description": "Shoplifting alert triggered - determined to be false alarm"
         }
     ]
 
@@ -255,16 +360,42 @@ async def get_camera(camera_id: str):
         return next((cam for cam in fallback_cameras if cam["camera_id"] == camera_id), None)
 
 async def update_camera_status(camera_id: str, status: str):
-    """Update camera status with fallback"""
+    """Update camera status with real-time broadcasting"""
     try:
         if cameras_collection:
             result = await cameras_collection.update_one(
                 {"camera_id": camera_id},
                 {"$set": {"status": status, "updated_at": datetime.utcnow()}}
             )
-            return result.modified_count > 0
+            
+            success = result.modified_count > 0
+            if success:
+                # Broadcast camera status update
+                try:
+                    updated_camera = await cameras_collection.find_one({"camera_id": camera_id})
+                    if updated_camera:
+                        updated_camera["_id"] = str(updated_camera["_id"])
+                        from app import websocket_manager
+                        await websocket_manager.broadcast_camera_update(updated_camera)
+                except Exception as broadcast_error:
+                    logger.error(f"Error broadcasting camera update: {broadcast_error}")
+            
+            return success
         else:
             logger.info(f"Fallback mode: Camera {camera_id} status would be updated to {status}")
+            
+            # Broadcast even in fallback mode
+            try:
+                from app import websocket_manager
+                fallback_camera = {
+                    "camera_id": camera_id,
+                    "status": status,
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                await websocket_manager.broadcast_camera_update(fallback_camera)
+            except Exception as e:
+                logger.error(f"Error broadcasting fallback camera update: {e}")
+            
             return True
     except Exception as e:
         logger.error(f"Error updating camera status: {e}")
@@ -272,7 +403,7 @@ async def update_camera_status(camera_id: str, status: str):
 
 # Incident operations with fallback
 async def create_incident(incident_data: Dict):
-    """Create a new incident with fallback"""
+    """Create a new incident with real-time broadcasting"""
     try:
         if incidents_collection:
             incident_data["created_at"] = datetime.utcnow()
@@ -280,11 +411,31 @@ async def create_incident(incident_data: Dict):
             
             result = await incidents_collection.insert_one(incident_data)
             incident_data["_id"] = str(result.inserted_id)
+            
+            # Broadcast new incident to all clients
+            try:
+                from app import websocket_manager
+                await websocket_manager.broadcast_incident_update(incident_data)
+                
+                # Also broadcast updated stats
+                stats = await get_incident_stats()
+                await websocket_manager.broadcast_stats_update(stats)
+            except Exception as broadcast_error:
+                logger.error(f"Error broadcasting new incident: {broadcast_error}")
+            
             return incident_data
         else:
             incident_data["_id"] = f"fallback-{datetime.now().timestamp()}"
             incident_data["created_at"] = datetime.utcnow()
             logger.info(f"Fallback mode: Incident created {incident_data['_id']}")
+            
+            # Broadcast even in fallback mode
+            try:
+                from app import websocket_manager
+                await websocket_manager.broadcast_incident_update(incident_data)
+            except Exception as e:
+                logger.error(f"Error broadcasting fallback incident: {e}")
+            
             return incident_data
     except Exception as e:
         logger.error(f"Error creating incident: {e}")
@@ -329,11 +480,16 @@ async def get_incidents(limit: int = 100, status: Optional[str] = None):
         return get_fallback_incidents()
 
 async def update_incident_status(incident_id: str, status: str):
-    """Update incident status with fallback"""
+    """Update incident status with real-time broadcasting"""
     try:
-        if incidents_collection:
-            from bson import ObjectId
-            from bson.errors import InvalidId
+        if incidents_collection and MOTOR_AVAILABLE:
+            # Try to import ObjectId safely
+            try:
+                from bson import ObjectId
+                from bson.errors import InvalidId
+                BSON_AVAILABLE = True
+            except ImportError:
+                BSON_AVAILABLE = False
             
             # First try to find by custom 'id' field
             result = await incidents_collection.update_one(
@@ -341,8 +497,8 @@ async def update_incident_status(incident_id: str, status: str):
                 {"$set": {"status": status, "updated_at": datetime.utcnow()}}
             )
             
-            # If no document was updated, try with MongoDB ObjectId
-            if result.modified_count == 0:
+            # If no document was updated and BSON is available, try with MongoDB ObjectId
+            if result.modified_count == 0 and BSON_AVAILABLE:
                 try:
                     result = await incidents_collection.update_one(
                         {"_id": ObjectId(incident_id)},
@@ -355,12 +511,51 @@ async def update_incident_status(incident_id: str, status: str):
             success = result.modified_count > 0
             if success:
                 logger.info(f"✅ Updated incident {incident_id} status to {status}")
+                
+                # Broadcast real-time update
+                try:
+                    # Get updated incident data
+                    if BSON_AVAILABLE and ObjectId.is_valid(incident_id):
+                        updated_incident = await incidents_collection.find_one(
+                            {"$or": [{"id": incident_id}, {"_id": ObjectId(incident_id)}]}
+                        )
+                    else:
+                        updated_incident = await incidents_collection.find_one({"id": incident_id})
+                        
+                    if updated_incident:
+                        updated_incident["_id"] = str(updated_incident["_id"])
+                        if "id" not in updated_incident:
+                            updated_incident["id"] = updated_incident["_id"]
+                        
+                        # Import websocket manager and broadcast
+                        from app import websocket_manager
+                        await websocket_manager.broadcast_incident_update(updated_incident)
+                        
+                        # Also broadcast updated stats
+                        stats = await get_incident_stats()
+                        await websocket_manager.broadcast_stats_update(stats)
+                        
+                except Exception as broadcast_error:
+                    logger.error(f"Error broadcasting incident update: {broadcast_error}")
             else:
                 logger.warning(f"❌ Incident {incident_id} not found")
                 
             return success
         else:
             logger.info(f"Fallback mode: Incident {incident_id} status would be updated to {status}")
+            
+            # Even in fallback mode, broadcast the update for frontend consistency
+            try:
+                from app import websocket_manager
+                fallback_incident = {
+                    "id": incident_id,
+                    "status": status,
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                await websocket_manager.broadcast_incident_update(fallback_incident)
+            except Exception as e:
+                logger.error(f"Error broadcasting fallback update: {e}")
+            
             return True
     except Exception as e:
         logger.error(f"Error updating incident status: {e}")
@@ -382,11 +577,20 @@ async def get_incident_stats():
                 "false_alarms": false_alarms
             }
         else:
+            # Calculate stats from fallback data
+            fallback_incidents = get_fallback_incidents()
+            total = len(fallback_incidents)
+            active = len([inc for inc in fallback_incidents if inc["status"] == "active"])
+            resolved = len([inc for inc in fallback_incidents if inc["status"] == "resolved"])
+            false_alarms = len([inc for inc in fallback_incidents if inc["status"] == "false-alarm"])
+            investigating = len([inc for inc in fallback_incidents if inc["status"] == "investigating"])
+            
             return {
-                "total": 2,
-                "active": 2,
-                "resolved": 0,
-                "false_alarms": 0
+                "total": total,
+                "active": active,
+                "resolved": resolved,
+                "false_alarms": false_alarms,
+                "investigating": investigating
             }
     except Exception as e:
         logger.error(f"Error getting incident stats: {e}")
@@ -444,15 +648,25 @@ async def get_user(username: str):
         else:
             # Fallback admin user
             if username == "admin":
-                from passlib.context import CryptContext
-                pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-                return {
-                    "_id": "fallback-admin",
-                    "username": "admin",
-                    "hashed_password": pwd_context.hash("admin@123"),
-                    "email": "admin@smartcity.com",
-                    "is_active": True
-                }
+                try:
+                    from passlib.context import CryptContext
+                    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                    return {
+                        "_id": "fallback-admin",
+                        "username": "admin",
+                        "hashed_password": pwd_context.hash("admin@123"),
+                        "email": "admin@smartcity.com",
+                        "is_active": True
+                    }
+                except ImportError:
+                    # Simple fallback without password hashing
+                    return {
+                        "_id": "fallback-admin",
+                        "username": "admin",
+                        "hashed_password": "admin@123",  # Plain text in fallback
+                        "email": "admin@smartcity.com",
+                        "is_active": True
+                    }
             return None
     except Exception as e:
         logger.error(f"Error getting user: {e}")

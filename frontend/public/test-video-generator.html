@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        .container {
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #00d4ff;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #00d4ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #0099cc;
+        }
+        .info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Video Generator for Smart City Surveillance</h1>
+        <div class="info">
+            <p>This tool generates a test video with simulated surveillance footage that you can use to test the video upload and analysis features.</p>
+        </div>
+        
+        <canvas id="canvas" width="640" height="480"></canvas>
+        
+        <div>
+            <button onclick="startRecording()">Start Recording</button>
+            <button onclick="stopRecording()" disabled id="stopBtn">Stop Recording</button>
+            <button onclick="downloadVideo()" disabled id="downloadBtn">Download Test Video</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <video id="preview" controls style="display: none; margin-top: 20px; max-width: 100%;"></video>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const preview = document.getElementById('preview');
+        
+        let mediaRecorder;
+        let recordedChunks = [];
+        let animationId;
+        let startTime;
+        
+        // Simulate surveillance scene
+        function drawFrame() {
+            const elapsed = (Date.now() - startTime) / 1000;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid pattern (surveillance overlay)
+            ctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvas.height; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Draw timestamp
+            ctx.fillStyle = '#00d4ff';
+            ctx.font = '16px monospace';
+            ctx.fillText(`CAM001 - ${new Date().toLocaleTimeString()}`, 10, 30);
+            
+            // Draw moving "person" (rectangle)
+            const personX = 50 + (elapsed * 30) % (canvas.width - 100);
+            const personY = canvas.height - 120;
+            
+            ctx.fillStyle = '#ff4444';
+            ctx.fillRect(personX, personY, 30, 80);
+            
+            // Draw detection box around person
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(personX - 10, personY - 10, 50, 100);
+            
+            // Draw detection label
+            ctx.fillStyle = '#ff4444';
+            ctx.fillRect(personX - 10, personY - 35, 120, 20);
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.fillText('PERSON DETECTED', personX - 5, personY - 20);
+            
+            // Draw building silhouettes
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+            
+            // Draw some windows
+            ctx.fillStyle = '#ffaa00';
+            for (let i = 20; i < canvas.width; i += 80) {
+                for (let j = canvas.height - 50; j > canvas.height - 200; j -= 30) {
+                    if (Math.random() > 0.7) {
+                        ctx.fillRect(i, j, 15, 20);
+                    }
+                }
+            }
+            
+            // Add some "suspicious activity" occasionally
+            if (elapsed > 5 && elapsed < 8) {
+                const suspiciousX = canvas.width - 150;
+                const suspiciousY = canvas.height - 100;
+                
+                ctx.fillStyle = '#ff8800';
+                ctx.fillRect(suspiciousX, suspiciousY, 25, 60);
+                
+                ctx.strokeStyle = '#ff8800';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(suspiciousX - 10, suspiciousY - 10, 45, 80);
+                
+                ctx.fillStyle = '#ff8800';
+                ctx.fillRect(suspiciousX - 10, suspiciousY - 35, 140, 20);
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.fillText('SUSPICIOUS ACTIVITY', suspiciousX - 5, suspiciousY - 20);
+            }
+            
+            // Recording indicator
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(canvas.width - 30, 30, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.fillText('REC', canvas.width - 60, 35);
+            }
+        }
+        
+        function animate() {
+            drawFrame();
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        async function startRecording() {
+            try {
+                const stream = canvas.captureStream(30); // 30 FPS
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp9'
+                });
+                
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    preview.src = url;
+                    preview.style.display = 'block';
+                    
+                    document.getElementById('downloadBtn').disabled = false;
+                    status.innerHTML = '<p style="color: #00ff88;">✅ Recording completed! You can now download the test video.</p>';
+                };
+                
+                startTime = Date.now();
+                mediaRecorder.start();
+                animate();
+                
+                document.querySelector('button').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                status.innerHTML = '<p style="color: #00d4ff;">🔴 Recording test surveillance footage...</p>';
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                status.innerHTML = '<p style="color: #ff4444;">❌ Error starting recording. Please try again.</p>';
+            }
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                cancelAnimationFrame(animationId);
+                
+                document.querySelector('button').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+        
+        function downloadVideo() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `surveillance-test-${Date.now()}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            status.innerHTML += '<p style="color: #00ff88;">📥 Test video downloaded! You can now upload it to the Smart City Surveillance system.</p>';
+        }
+        
+        // Start animation immediately
+        startTime = Date.now();
+        animate();
+        
+        // Auto-record a 10-second demo
+        setTimeout(() => {
+            if (!mediaRecorder) {
+                startRecording();
+                setTimeout(stopRecording, 10000); // Stop after 10 seconds
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

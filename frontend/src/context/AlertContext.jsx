@@ -34,6 +34,7 @@ export const AlertProvider = ({ children }) => {
   const fetchIncidents = async () => {
     try {
       const apiUrl = getApiUrl('/incidents?limit=10');
+      console.log(`📡 Fetching incidents from: ${apiUrl}`);
       
       // Check if we're in fallback mode or if API call fails
       if (apiUrl === 'fallback') {
@@ -42,7 +43,7 @@ export const AlertProvider = ({ children }) => {
         return;
       }
       
-      const response = await axios.get(apiUrl, { timeout: 5000 });
+      const response = await axios.get(apiUrl, { timeout: 10000 });
       const incidentData = response.data.incidents || [];
       
       // Process backend data and limit to 10 most recent incidents
@@ -64,18 +65,19 @@ export const AlertProvider = ({ children }) => {
       });
       
       setIncidents(processedIncidents);
-      console.log('✅ Incidents fetched from Render backend:', processedIncidents.length);
+      console.log('✅ Incidents fetched from backend:', processedIncidents.length);
       
     } catch (error) {
-      console.error('❌ Backend unavailable, switching to fallback mode:', error.message);
+      console.error('❌ Failed to fetch incidents:', error.message);
       
-      // Switch to fallback mode and use local data
-      switchToFallbackMode();
+      // Don't switch to fallback mode automatically - just use local fallback data
+      // but keep the API configuration intact for updates
+      console.log('📱 Using fallback incident data but keeping API active for updates');
       setIncidents(getFallbackIncidents());
     }
   };
 
-  // Complete fallback incident data
+  // Complete fallback incident data with 9 total incidents
   const getFallbackIncidents = () => [
     {
       id: 'fallback-1',
@@ -112,6 +114,78 @@ export const AlertProvider = ({ children }) => {
       status: "resolved",
       timestamp: new Date(Date.now() - 3600000).toISOString(),
       description: "Fire alarm triggered - resolved by emergency services"
+    },
+    {
+      id: 'fallback-4',
+      camera_id: "CAM003",
+      location: "Airport Gate",
+      latitude: 40.6892,
+      longitude: -74.1745,
+      incident_type: "Unattended Baggage",
+      severity: "medium",
+      status: "investigating",
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      description: "Unattended luggage detected at security checkpoint"
+    },
+    {
+      id: 'fallback-5',
+      camera_id: "CAM005",
+      location: "Park Entrance",
+      latitude: 40.7829,
+      longitude: -73.9654,
+      incident_type: "Vandalism",
+      severity: "low",
+      status: "active",
+      timestamp: new Date(Date.now() - 900000).toISOString(),
+      description: "Graffiti activity detected on park property"
+    },
+    {
+      id: 'fallback-6',
+      camera_id: "CAM006",
+      location: "Highway Bridge",
+      latitude: 40.7282,
+      longitude: -74.0776,
+      incident_type: "Traffic Violation",
+      severity: "medium",
+      status: "active",
+      timestamp: new Date(Date.now() - 600000).toISOString(),
+      description: "Speeding vehicle detected exceeding limit by 25mph"
+    },
+    {
+      id: 'fallback-7',
+      camera_id: "CAM001",
+      location: "City Center",
+      latitude: 40.7128,
+      longitude: -74.006,
+      incident_type: "Crowd Gathering",
+      severity: "medium",
+      status: "active",
+      timestamp: new Date(Date.now() - 300000).toISOString(),
+      description: "Large crowd gathering detected - monitoring for safety"
+    },
+    {
+      id: 'fallback-8',
+      camera_id: "CAM002",
+      location: "Metro Station",
+      latitude: 40.7589,
+      longitude: -73.9851,
+      incident_type: "Medical Emergency",
+      severity: "high",
+      status: "resolved",
+      timestamp: new Date(Date.now() - 7200000).toISOString(),
+      description: "Person collapsed on platform - emergency services responded"
+    },
+    {
+      id: 'fallback-9',
+      camera_id: "CAM004",
+      location: "Shopping Mall",
+      latitude: 40.7505,
+      longitude: -73.9934,
+      incident_type: "Theft Alert",
+      severity: "medium",
+      status: "false-alarm",
+      timestamp: new Date(Date.now() - 5400000).toISOString(),
+      description: "Shoplifting alert triggered - determined to be false alarm"
     }
   ];
 
@@ -249,7 +323,7 @@ export const AlertProvider = ({ children }) => {
               console.log('💓 Heartbeat received - connection alive');
             } else if (data.type === 'pong') {
               console.log('🏓 Pong received');
-            } else if (data.type === 'alert') {
+            } else if (data.type === 'alert' || data.type === 'new_alert') {
               // Real-time alert from AI detection
               const alertData = data.data;
               setAlerts(prev => [alertData, ...prev].slice(0, 50));
@@ -269,21 +343,45 @@ export const AlertProvider = ({ children }) => {
                   timestamp: alertData.timestamp
                 };
                 setIncidents(prev => [incident, ...prev].slice(0, 10));
-                
-                // Refresh incidents from backend
-                setTimeout(fetchIncidents, 1000);
               }
             } else if (data.type === 'incident_update') {
-              // Incident status update
+              // Real-time incident status update
               const updatedIncident = data.data;
-              setIncidents(prev => 
-                prev.map(incident => 
-                  incident.id === updatedIncident.id ? updatedIncident : incident
-                )
-              );
+              console.log('📊 Real-time incident update received:', updatedIncident);
               
-              // Refresh incidents from backend
-              setTimeout(fetchIncidents, 1000);
+              setIncidents(prev => {
+                const existingIndex = prev.findIndex(inc => 
+                  inc.id === updatedIncident.id || inc._id === updatedIncident._id
+                );
+                
+                if (existingIndex >= 0) {
+                  // Update existing incident
+                  const newIncidents = [...prev];
+                  newIncidents[existingIndex] = { ...newIncidents[existingIndex], ...updatedIncident };
+                  return newIncidents;
+                } else {
+                  // Add new incident
+                  return [updatedIncident, ...prev].slice(0, 10);
+                }
+              });
+            } else if (data.type === 'camera_update') {
+              // Real-time camera status update
+              const updatedCamera = data.data;
+              console.log('📹 Real-time camera update received:', updatedCamera);
+              
+              // Trigger camera data refresh in components that need it
+              window.dispatchEvent(new CustomEvent('cameraUpdate', { 
+                detail: updatedCamera 
+              }));
+            } else if (data.type === 'stats_update') {
+              // Real-time statistics update
+              const updatedStats = data.data;
+              console.log('📈 Real-time stats update received:', updatedStats);
+              
+              // Trigger stats refresh in components that need it
+              window.dispatchEvent(new CustomEvent('statsUpdate', { 
+                detail: updatedStats 
+              }));
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);
@@ -372,8 +470,10 @@ export const AlertProvider = ({ children }) => {
     playAlarm();
   };
 
-  // Add function to update incident status
+  // Add function to update incident status - working version
   const updateIncidentStatus = async (incidentId, newStatus) => {
+    console.log(`🔄 Starting update for incident ${incidentId} to status: ${newStatus}`);
+    
     try {
       // Update local state immediately for better UX
       setIncidents(prev => 
@@ -384,38 +484,45 @@ export const AlertProvider = ({ children }) => {
         )
       );
 
-      console.log(`🔄 Updating incident ${incidentId} status to ${newStatus}`);
-
-      // Send update to backend via WebSocket or API
-      if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify({
-          type: 'incident_status_update',
-          incident_id: incidentId,
-          status: newStatus
-        }));
+      // Check if we're in fallback mode
+      const apiUrl = getApiUrl(`/incidents/${incidentId}/status?status=${newStatus}`);
+      console.log(`📡 API URL: ${apiUrl}`);
+      
+      if (apiUrl === 'fallback') {
+        console.log('📱 Fallback mode: Incident status updated locally only');
+        return; // Success in fallback mode
       }
 
-      // Make API call to ensure persistence - handle both custom ID and MongoDB ObjectId
-      const response = await fetch(getApiUrl(`/incidents/${incidentId}/status?status=${newStatus}`), {
+      // Make API call
+      console.log(`📡 Making PATCH request to: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         }
       });
 
+      console.log(`📡 Response status: ${response.status}`);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Failed to update incident status: ${response.status} - ${errorData.detail || 'Unknown error'}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`❌ API Error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      console.log(`✅ Incident ${incidentId} status updated to ${newStatus}`);
+      const result = await response.json();
+      console.log(`✅ Incident ${incidentId} updated successfully:`, result);
       
-      // Refresh incidents from backend to ensure all components are in sync
-      setTimeout(fetchIncidents, 500);
     } catch (error) {
       console.error('❌ Error updating incident status:', error);
+      
       // Revert the optimistic update on error
+      console.log('🔄 Reverting optimistic update due to error');
       fetchIncidents(); // Refresh from backend to get correct state
+      
+      // Re-throw error for UI handling
+      throw error;
     }
   };
 

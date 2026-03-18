@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Eye, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAlert } from '../context/AlertContext';
 
 const IncidentTable = ({ incidents = [], onIncidentUpdate }) => {
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [updating, setUpdating] = useState(false);
   const navigate = useNavigate();
+  const { updateIncidentStatus } = useAlert();
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -56,29 +58,23 @@ const IncidentTable = ({ incidents = [], onIncidentUpdate }) => {
     setSelectedIncident(null);
   };
 
-  const updateIncidentStatus = async (incidentId, newStatus) => {
+  const handleUpdateIncidentStatus = async (incidentId, newStatus) => {
     setUpdating(true);
     try {
-      // For demo purposes, simulate the update without making API call
-      // In production, this would make the actual API call
+      console.log(`🔄 Updating incident ${incidentId} to status: ${newStatus}`);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Use the AlertContext method directly - this is how it worked originally
+      await updateIncidentStatus(incidentId, newStatus);
       
-      // Update local state
-      if (onIncidentUpdate) {
-        onIncidentUpdate(incidentId, newStatus);
-      }
-      
-      // Close modal
+      // Close modal on success
       setSelectedIncident(null);
       
       // Show success notification
       showNotification(`Incident marked as ${newStatus.replace('-', ' ')}`, 'success');
       
     } catch (error) {
-      console.error('Error updating incident status:', error);
-      showNotification('Failed to update incident status', 'error');
+      console.error('❌ Error updating incident status:', error);
+      showNotification(`Failed to update incident status: ${error.message}`, 'error');
     } finally {
       setUpdating(false);
     }
@@ -206,7 +202,7 @@ const IncidentTable = ({ incidents = [], onIncidentUpdate }) => {
                   <>
                     <button 
                       className="btn btn-success"
-                      onClick={() => updateIncidentStatus(selectedIncident.id, 'resolved')}
+                      onClick={() => handleUpdateIncidentStatus(selectedIncident.id, 'resolved')}
                       disabled={updating}
                     >
                       <CheckCircle size={16} />
@@ -214,7 +210,7 @@ const IncidentTable = ({ incidents = [], onIncidentUpdate }) => {
                     </button>
                     <button 
                       className="btn btn-danger"
-                      onClick={() => updateIncidentStatus(selectedIncident.id, 'false-alarm')}
+                      onClick={() => handleUpdateIncidentStatus(selectedIncident.id, 'false-alarm')}
                       disabled={updating}
                     >
                       <XCircle size={16} />

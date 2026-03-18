@@ -19,7 +19,38 @@ const Dashboard = () => {
   const { incidents, alerts, simulateAlert, connectionStatus } = useAlert();
   const navigate = useNavigate();
 
-  // Update stats when incidents change
+  // Listen for real-time stats updates
+  useEffect(() => {
+    const handleStatsUpdate = (event) => {
+      const updatedStats = event.detail;
+      console.log('📈 Dashboard received stats update:', updatedStats);
+      
+      setStats(prev => ({
+        ...prev,
+        totalIncidents: updatedStats.total || prev.totalIncidents,
+        activeIncidents: updatedStats.active || prev.activeIncidents
+      }));
+    };
+
+    const handleCameraUpdate = (event) => {
+      const updatedCamera = event.detail;
+      console.log('📹 Dashboard received camera update:', updatedCamera);
+      
+      // Refresh camera stats when camera status changes
+      fetchCameraStats();
+    };
+
+    // Add event listeners for real-time updates
+    window.addEventListener('statsUpdate', handleStatsUpdate);
+    window.addEventListener('cameraUpdate', handleCameraUpdate);
+
+    return () => {
+      window.removeEventListener('statsUpdate', handleStatsUpdate);
+      window.removeEventListener('cameraUpdate', handleCameraUpdate);
+    };
+  }, []);
+
+  // Update stats when incidents change (from AlertContext)
   useEffect(() => {
     const activeIncidents = incidents.filter(inc => inc.status === 'active').length;
     setStats(prev => ({
