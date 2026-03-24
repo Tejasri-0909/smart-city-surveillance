@@ -2,14 +2,14 @@
 
 // Production URLs (Render deployment) - Primary
 const PRODUCTION_CONFIG = {
-  API_BASE_URL: 'https://smart-city-surveillance.onrender.com',
-  WS_BASE_URL: 'wss://smart-city-surveillance.onrender.com'
+  API_BASE_URL: 'https://smart-city-surveillance-backend.onrender.com',
+  WS_BASE_URL: 'wss://smart-city-surveillance-backend.onrender.com'
 };
 
 // Local development URLs
 const DEVELOPMENT_CONFIG = {
-  API_BASE_URL: 'http://localhost:8001',
-  WS_BASE_URL: 'ws://localhost:8001'
+  API_BASE_URL: 'http://localhost:8000',
+  WS_BASE_URL: 'ws://localhost:8000'
 };
 
 // Fallback configuration when backend is down
@@ -105,9 +105,11 @@ export const createWebSocketConnection = (endpoint, onMessage, onError) => {
 };
 
 // Log current configuration
-console.log('🔧 API Configuration (REAL-TIME ENABLED):', {
+console.log('🔧 API Configuration (PRODUCTION READY):', {
   environment: window.location.hostname === 'localhost' ? 'development' : 'production',
   apiUrl: API_CONFIG.API_BASE_URL,
   wsUrl: API_CONFIG.WS_BASE_URL,
   realTimeEnabled: true
 });
+
+export default API_CONFIG;

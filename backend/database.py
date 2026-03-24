@@ -329,35 +329,52 @@ def get_fallback_incidents():
 
 # Camera operations with fallback
 async def get_cameras():
-    """Get all cameras with fallback"""
+    """Get all cameras - always includes the 6 permanent surveillance cameras"""
+    # Always start with the 6 permanent cameras that are part of the surveillance system
+    permanent_cameras = get_fallback_cameras()
+    
     try:
         if cameras_collection:
-            cameras = []
+            # Try to get additional cameras from database
+            additional_cameras = []
             async for camera in cameras_collection.find({}):
                 camera["_id"] = str(camera["_id"])
-                cameras.append(camera)
-            return cameras
+                # Only add if it's not one of the permanent cameras
+                if not any(perm_cam["camera_id"] == camera["camera_id"] for perm_cam in permanent_cameras):
+                    additional_cameras.append(camera)
+            
+            # Return permanent cameras + any additional cameras
+            all_cameras = permanent_cameras + additional_cameras
+            logger.info(f"✅ Returning {len(permanent_cameras)} permanent + {len(additional_cameras)} additional cameras")
+            return all_cameras
         else:
-            return get_fallback_cameras()
+            logger.info("📱 Database unavailable, returning 6 permanent cameras")
+            return permanent_cameras
     except Exception as e:
         logger.error(f"Error getting cameras: {e}")
-        return get_fallback_cameras()
+        logger.info("📱 Fallback: returning 6 permanent cameras")
+        return permanent_cameras
 
 async def get_camera(camera_id: str):
-    """Get a specific camera with fallback"""
+    """Get a specific camera - checks permanent cameras first"""
+    # Check permanent cameras first
+    permanent_cameras = get_fallback_cameras()
+    permanent_camera = next((cam for cam in permanent_cameras if cam["camera_id"] == camera_id), None)
+    
+    if permanent_camera:
+        return permanent_camera
+    
+    # If not a permanent camera, check database for additional cameras
     try:
         if cameras_collection:
             camera = await cameras_collection.find_one({"camera_id": camera_id})
             if camera:
                 camera["_id"] = str(camera["_id"])
-            return camera
-        else:
-            fallback_cameras = get_fallback_cameras()
-            return next((cam for cam in fallback_cameras if cam["camera_id"] == camera_id), None)
+                return camera
+        return None
     except Exception as e:
         logger.error(f"Error getting camera {camera_id}: {e}")
-        fallback_cameras = get_fallback_cameras()
-        return next((cam for cam in fallback_cameras if cam["camera_id"] == camera_id), None)
+        return None
 
 async def update_camera_status(camera_id: str, status: str):
     """Update camera status with real-time broadcasting"""

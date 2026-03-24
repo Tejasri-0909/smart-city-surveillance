@@ -10,7 +10,7 @@ websockets==12.0
 
 # AI and Computer Vision Dependencies
 ultralytics==8.3.0
-opencv-python==4.10.0.84
+opencv-python-headless==4.10.0.84
 torch==2.4.1
 torchvision==0.19.1
 numpy==1.26.4
@@ -18,3 +18,6 @@ Pillow==10.4.0
 
 # File handling for video upload
 aiofiles==24.1.0
+
+# Production dependencies
+gunicorn==21.2.0

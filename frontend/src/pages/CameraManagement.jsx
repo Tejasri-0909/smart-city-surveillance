@@ -30,75 +30,87 @@ const CameraManagement = () => {
     setLoading(true);
     setError(null);
     
+    // Always use the permanent 6 cameras - they are part of the system
+    const permanentCameras = [
+      {
+        camera_id: 'CAM001',
+        location: 'City Center',
+        latitude: 40.7128,
+        longitude: -74.0060,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4'
+      },
+      {
+        camera_id: 'CAM002',
+        location: 'Metro Station',
+        latitude: 40.7589,
+        longitude: -73.9851,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771935/cam2_euevgq.mp4'
+      },
+      {
+        camera_id: 'CAM003',
+        location: 'Airport Gate',
+        latitude: 40.6892,
+        longitude: -74.1745,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771955/cam3_sug2zm.mp4'
+      },
+      {
+        camera_id: 'CAM004',
+        location: 'Shopping Mall',
+        latitude: 40.7505,
+        longitude: -73.9934,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771984/cam4_xexpfj.mp4'
+      },
+      {
+        camera_id: 'CAM005',
+        location: 'Park Entrance',
+        latitude: 40.7829,
+        longitude: -73.9654,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773773966/Cam5_gefgvz.mp4'
+      },
+      {
+        camera_id: 'CAM006',
+        location: 'Highway Bridge',
+        latitude: 40.7282,
+        longitude: -74.0776,
+        status: 'active',
+        stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773774617/Cam6_bwq6kd.mp4'
+      }
+    ];
+    
+    console.log('✅ Permanent cameras loaded:', permanentCameras);
+    setCameras(permanentCameras);
+    
+    // Try to fetch additional cameras from backend (if any)
     try {
       const apiUrl = getApiUrl('/cameras');
-      console.log('📡 Camera API URL:', apiUrl);
+      console.log('📡 Checking for additional cameras from API:', apiUrl);
       
-      const response = await axios.get(apiUrl);
-      console.log('✅ Cameras fetched:', response.data);
-      
-      setCameras(response.data.cameras || []);
+      if (apiUrl !== 'fallback') {
+        const response = await axios.get(apiUrl);
+        const backendCameras = response.data.cameras || [];
+        
+        // Merge backend cameras with permanent cameras (avoid duplicates)
+        const allCameras = [...permanentCameras];
+        backendCameras.forEach(backendCam => {
+          if (!permanentCameras.find(cam => cam.camera_id === backendCam.camera_id)) {
+            allCameras.push(backendCam);
+          }
+        });
+        
+        console.log('✅ Total cameras (permanent + backend):', allCameras.length);
+        setCameras(allCameras);
+      }
     } catch (error) {
-      console.error('❌ Error fetching cameras:', error);
-      setError(error.message);
-      
-      // Use fallback camera data
-      const fallbackCameras = [
-        {
-          camera_id: 'CAM001',
-          location: 'City Center',
-          latitude: 40.7128,
-          longitude: -74.0060,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771961/cam1_funvna.mp4'
-        },
-        {
-          camera_id: 'CAM002',
-          location: 'Metro Station',
-          latitude: 40.7589,
-          longitude: -73.9851,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771935/cam2_euevgq.mp4'
-        },
-        {
-          camera_id: 'CAM003',
-          location: 'Airport Gate',
-          latitude: 40.6892,
-          longitude: -74.1745,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771955/cam3_sug2zm.mp4'
-        },
-        {
-          camera_id: 'CAM004',
-          location: 'Shopping Mall',
-          latitude: 40.7505,
-          longitude: -73.9934,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773771984/cam4_xexpfj.mp4'
-        },
-        {
-          camera_id: 'CAM005',
-          location: 'Park Entrance',
-          latitude: 40.7829,
-          longitude: -73.9654,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773773966/Cam5_gefgvz.mp4'
-        },
-        {
-          camera_id: 'CAM006',
-          location: 'Highway Bridge',
-          latitude: 40.7282,
-          longitude: -74.0776,
-          status: 'active',
-          stream_url: 'https://res.cloudinary.com/dybci4h1u/video/upload/v1773774617/Cam6_bwq6kd.mp4'
-        }
-      ];
-      
-      console.log('📱 Using fallback camera data:', fallbackCameras);
-      setCameras(fallbackCameras);
-    } finally {
-      setLoading(false);
+      console.log('📱 Backend cameras not available, using permanent cameras only');
+      // Keep the permanent cameras - no error needed
     }
+    
+    setLoading(false);
   };
 
   const handleSubmit = async (e) => {
@@ -194,20 +206,6 @@ const CameraManagement = () => {
     );
   }
 
-  if (error && cameras.length === 0) {
-    return (
-      <div className="camera-management">
-        <div className="error-container">
-          <h3>Error Loading Cameras</h3>
-          <p>{error}</p>
-          <button className="btn btn-primary" onClick={fetchCameras}>
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="camera-management">
       <div className="management-header">
@@ -225,7 +223,7 @@ const CameraManagement = () => {
         </button>
       </div>
 
-      {/* Camera Grid */}
+      {/* Camera Grid - Always shows the 6 permanent cameras */}
       <div className="camera-management-grid">
         {cameras.map((camera) => (
           <div key={camera.camera_id} className="camera-management-card">
@@ -284,21 +282,6 @@ const CameraManagement = () => {
           </div>
         ))}
       </div>
-
-      {cameras.length === 0 && (
-        <div className="no-cameras">
-          <Camera size={48} />
-          <h3>No cameras registered</h3>
-          <p>Add your first camera to start monitoring</p>
-          <button 
-            className="btn btn-primary"
-            onClick={() => setShowAddModal(true)}
-          >
-            <Plus size={16} />
-            Add Camera
-          </button>
-        </div>
-      )}
 
       {/* Add/Edit Camera Modal */}
       {showAddModal && (

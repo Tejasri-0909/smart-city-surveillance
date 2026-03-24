@@ -205,7 +205,7 @@ const Dashboard = () => {
           </h3>
         </div>
         
-        {alerts.length === 0 ? (
+        {alerts.length === 0 && incidents.filter(inc => inc.status === 'active').length === 0 ? (
           <div className="no-alerts">
             <AlertTriangle size={48} className="no-alerts-icon" />
             <p>No active alerts</p>
@@ -213,7 +213,8 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="alerts-list">
-            {alerts.slice(0, 5).map((alert) => (
+            {/* Show real alerts first */}
+            {alerts.slice(0, 3).map((alert) => (
               <div key={alert.id} className="alert-item">
                 <div className="alert-header">
                   <div className="alert-type-container">
@@ -235,6 +236,36 @@ const Dashboard = () => {
                 )}
               </div>
             ))}
+            
+            {/* Show active incidents as alerts */}
+            {incidents
+              .filter(inc => inc.status === 'active' && inc.severity !== 'low')
+              .slice(0, 5 - alerts.length)
+              .map((incident) => (
+                <div key={`incident-${incident.id}`} className="alert-item">
+                  <div className="alert-header">
+                    <div className="alert-type-container">
+                      <AlertTriangle size={16} />
+                      <span className="alert-type">{incident.incident_type}</span>
+                    </div>
+                    <div className="alert-actions">
+                      <span className={`severity-badge ${incident.severity}`}>
+                        {incident.severity.toUpperCase()}
+                      </span>
+                      <span className="alert-time">
+                        {new Date(incident.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="alert-message">
+                    {incident.description || `${incident.incident_type} detected at ${incident.location}`}
+                  </div>
+                  <div className="alert-details">
+                    <span className="alert-camera">Camera: {incident.camera_id}</span>
+                    <span className="alert-location">Location: {incident.location}</span>
+                  </div>
+                </div>
+              ))}
           </div>
         )}
       </div>

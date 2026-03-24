@@ -1686,6 +1686,44 @@ iframe[src*="google.com/maps"] + div {
   color: #888;
 }
 
+.alert-details span {
+  display: flex;
+  align-items: center;
+}
+
+.severity-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.severity-badge.critical {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+  border: 1px solid #ff4444;
+}
+
+.severity-badge.high {
+  background: rgba(255, 165, 0, 0.2);
+  color: #ffa500;
+  border: 1px solid #ffa500;
+}
+
+.severity-badge.medium {
+  background: rgba(255, 255, 0, 0.2);
+  color: #ffff00;
+  border: 1px solid #ffff00;
+}
+
+.severity-badge.low {
+  background: rgba(0, 255, 136, 0.2);
+  color: #00ff88;
+  border: 1px solid #00ff88;
+}
+
 /* RESPONSIVE DESIGN */
 @media (max-width: 1200px) {
   .camera-grid-container {
