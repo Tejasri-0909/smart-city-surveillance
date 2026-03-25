@@ -68,7 +68,7 @@ test_*.py
 test_*.html
 *_test.py
 
-# Development scripts
-start_*.py
-start_*.bat
-start_*.ps1
+# Development scripts (keep for local development)
+# start_*.py
+# start_*.bat
+# start_*.ps1
