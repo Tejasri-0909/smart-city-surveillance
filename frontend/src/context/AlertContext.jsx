@@ -254,10 +254,8 @@ export const AlertProvider = ({ children }) => {
         const response = await axios.get(apiUrl, { timeout: 5000 });
         if (response.status === 200) {
           // If WebSocket is not connected but API works, show as connected
-          if (connectionStatus === 'connecting' || connectionStatus === 'error') {
-            console.log('📡 Render API working, using fallback connection mode');
-            setConnectionStatus('connected');
-          }
+          console.log('📡 Render API working, using fallback connection mode');
+          setConnectionStatus('connected');
         }
       } catch (error) {
         console.log('Render API check failed, switching to fallback:', error.message);
@@ -276,7 +274,7 @@ export const AlertProvider = ({ children }) => {
       clearTimeout(connectionCheck);
       clearInterval(interval);
     };
-  }, [connectionStatus]);
+  }, []); // Remove connectionStatus dependency to prevent infinite loop
 
   // Test backend connectivity
   const testBackendConnection = async () => {
