@@ -40,13 +40,27 @@ const Dashboard = () => {
       fetchCameraStats();
     };
 
+    const handleIncidentStatusUpdate = (event) => {
+      const { incidentId, newStatus, activeCount, totalCount } = event.detail;
+      console.log(`📊 Dashboard received incident status update: ${incidentId} -> ${newStatus}`);
+      
+      // Update stats immediately to reflect the change
+      setStats(prev => ({
+        ...prev,
+        totalIncidents: totalCount,
+        activeIncidents: activeCount
+      }));
+    };
+
     // Add event listeners for real-time updates
     window.addEventListener('statsUpdate', handleStatsUpdate);
     window.addEventListener('cameraUpdate', handleCameraUpdate);
+    window.addEventListener('incidentStatusUpdate', handleIncidentStatusUpdate);
 
     return () => {
       window.removeEventListener('statsUpdate', handleStatsUpdate);
       window.removeEventListener('cameraUpdate', handleCameraUpdate);
+      window.removeEventListener('incidentStatusUpdate', handleIncidentStatusUpdate);
     };
   }, []);
 
@@ -135,7 +149,7 @@ const Dashboard = () => {
             <AlertTriangle size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-number">{alerts.length}</div>
+            <div className="stat-number">{stats.activeIncidents}</div>
             <div className="stat-label">Active Alerts</div>
           </div>
         </div>

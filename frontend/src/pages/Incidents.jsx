@@ -84,6 +84,22 @@ const Incidents = () => {
 
   const stats = getIncidentStats();
 
+  // Listen for real-time incident status updates
+  useEffect(() => {
+    const handleIncidentStatusUpdate = (event) => {
+      const { incidentId, newStatus } = event.detail;
+      console.log(`📊 Incidents page received status update: ${incidentId} -> ${newStatus}`);
+      // The incidents will be updated via AlertContext, so we just need to re-filter
+      filterIncidents();
+    };
+
+    window.addEventListener('incidentStatusUpdate', handleIncidentStatusUpdate);
+
+    return () => {
+      window.removeEventListener('incidentStatusUpdate', handleIncidentStatusUpdate);
+    };
+  }, [incidents, searchTerm, statusFilter, typeFilter]);
+
   if (loading) {
     return (
       <div className="loading">
