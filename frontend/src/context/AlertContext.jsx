@@ -30,7 +30,7 @@ export const AlertProvider = ({ children }) => {
     });
   };
 
-  // Fetch incidents from backend with robust fallback and localStorage persistence
+  // Fetch incidents from backend with robust fallback
   const fetchIncidents = async () => {
     try {
       const apiUrl = getApiUrl('/incidents?limit=10');
@@ -39,9 +39,7 @@ export const AlertProvider = ({ children }) => {
       // Check if we're in fallback mode or if API call fails
       if (apiUrl === 'fallback') {
         console.log('📱 Using fallback mode - backend unavailable');
-        // Try to restore from localStorage first, then fallback data
-        const storedIncidents = restoreIncidentsFromStorage();
-        setIncidents(storedIncidents || getFallbackIncidents());
+        setIncidents(getFallbackIncidents());
         return;
       }
       
@@ -66,10 +64,8 @@ export const AlertProvider = ({ children }) => {
         };
       });
       
-      // Merge with localStorage data to preserve local status changes
-      const mergedIncidents = mergeWithStoredIncidents(processedIncidents);
-      setIncidents(mergedIncidents);
-      console.log('✅ Incidents fetched from backend and merged with local changes:', mergedIncidents.length);
+      setIncidents(processedIncidents);
+      console.log('✅ Incidents fetched from backend:', processedIncidents.length);
       
     } catch (error) {
       console.error('❌ Failed to fetch incidents:', error.message);
@@ -77,50 +73,7 @@ export const AlertProvider = ({ children }) => {
       // Don't switch to fallback mode automatically - just use local fallback data
       // but keep the API configuration intact for updates
       console.log('📱 Using fallback incident data but keeping API active for updates');
-      const storedIncidents = restoreIncidentsFromStorage();
-      setIncidents(storedIncidents || getFallbackIncidents());
-    }
-  };
-
-  // Restore incidents from localStorage
-  const restoreIncidentsFromStorage = () => {
-    try {
-      const stored = localStorage.getItem('smart_city_incidents');
-      if (stored) {
-        const parsedIncidents = JSON.parse(stored);
-        console.log('💾 Restored incidents from localStorage:', parsedIncidents.length);
-        return parsedIncidents;
-      }
-    } catch (error) {
-      console.warn('⚠️ Failed to restore from localStorage:', error);
-    }
-    return null;
-  };
-
-  // Merge backend data with localStorage changes (localStorage takes precedence for status)
-  const mergeWithStoredIncidents = (backendIncidents) => {
-    try {
-      const stored = localStorage.getItem('smart_city_incidents');
-      if (!stored) return backendIncidents;
-      
-      const storedIncidents = JSON.parse(stored);
-      const storedMap = new Map(storedIncidents.map(inc => [inc.id, inc]));
-      
-      return backendIncidents.map(incident => {
-        const storedIncident = storedMap.get(incident.id);
-        if (storedIncident && storedIncident.lastUpdated) {
-          // Use stored status if it was updated locally
-          return {
-            ...incident,
-            status: storedIncident.status,
-            lastUpdated: storedIncident.lastUpdated
-          };
-        }
-        return incident;
-      });
-    } catch (error) {
-      console.warn('⚠️ Failed to merge with stored incidents:', error);
-      return backendIncidents;
+      setIncidents(getFallbackIncidents());
     }
   };
 
@@ -254,8 +207,10 @@ export const AlertProvider = ({ children }) => {
         const response = await axios.get(apiUrl, { timeout: 5000 });
         if (response.status === 200) {
           // If WebSocket is not connected but API works, show as connected
-          console.log('📡 Render API working, using fallback connection mode');
-          setConnectionStatus('connected');
+          if (connectionStatus === 'connecting' || connectionStatus === 'error') {
+            console.log('📡 Render API working, using fallback connection mode');
+            setConnectionStatus('connected');
+          }
         }
       } catch (error) {
         console.log('Render API check failed, switching to fallback:', error.message);
@@ -274,7 +229,7 @@ export const AlertProvider = ({ children }) => {
       clearTimeout(connectionCheck);
       clearInterval(interval);
     };
-  }, []); // Remove connectionStatus dependency to prevent infinite loop
+  }, [connectionStatus]);
 
   // Test backend connectivity
   const testBackendConnection = async () => {
@@ -515,40 +470,19 @@ export const AlertProvider = ({ children }) => {
     playAlarm();
   };
 
-  // Add function to update incident status - working version with persistence
+  // Add function to update incident status - working version
   const updateIncidentStatus = async (incidentId, newStatus) => {
     console.log(`🔄 Starting update for incident ${incidentId} to status: ${newStatus}`);
     
     try {
-      // Update local state immediately for better UX and persistence
-      setIncidents(prev => {
-        const updatedIncidents = prev.map(incident => 
+      // Update local state immediately for better UX
+      setIncidents(prev => 
+        prev.map(incident => 
           incident.id === incidentId 
-            ? { ...incident, status: newStatus, lastUpdated: new Date().toISOString() }
+            ? { ...incident, status: newStatus }
             : incident
-        );
-        
-        // Store in localStorage for persistence across page refreshes
-        try {
-          localStorage.setItem('smart_city_incidents', JSON.stringify(updatedIncidents));
-          console.log('💾 Incidents saved to localStorage for persistence');
-        } catch (storageError) {
-          console.warn('⚠️ Failed to save to localStorage:', storageError);
-        }
-        
-        // Broadcast the change to all components immediately
-        const activeCount = updatedIncidents.filter(inc => inc.status === 'active').length;
-        window.dispatchEvent(new CustomEvent('incidentStatusUpdate', { 
-          detail: { 
-            incidentId, 
-            newStatus, 
-            activeCount,
-            totalCount: updatedIncidents.length
-          } 
-        }));
-        
-        return updatedIncidents;
-      });
+        )
+      );
 
       // Check if we're in fallback mode
       const apiUrl = getApiUrl(`/incidents/${incidentId}/status?status=${newStatus}`);
@@ -597,16 +531,6 @@ export const AlertProvider = ({ children }) => {
     fetchIncidents();
   };
 
-  // Function to clear stored incident data (for logout or reset)
-  const clearStoredIncidents = () => {
-    try {
-      localStorage.removeItem('smart_city_incidents');
-      console.log('💾 Cleared stored incidents from localStorage');
-    } catch (error) {
-      console.warn('⚠️ Failed to clear localStorage:', error);
-    }
-  };
-
   const value = {
     alerts,
     incidents,
@@ -617,8 +541,7 @@ export const AlertProvider = ({ children }) => {
     clearAllAlerts,
     simulateAlert,
     updateIncidentStatus,
-    refreshIncidents,
-    clearStoredIncidents
+    refreshIncidents
   };
 
   return (

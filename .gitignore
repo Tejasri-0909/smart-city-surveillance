@@ -36,12 +36,6 @@ __pycache__/
 .Python
 *.so
 
-# Virtual environments
-venv/
-env/
-*/venv/
-*/env/
-
 # IDE files
 .vscode/
 .idea/
@@ -55,20 +49,3 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-
-# Documentation files (keep only essential)
-*_COMPLETE.md
-*_STATUS.md
-*_FIXES.md
-*_GUIDE.md
-*_CHECKLIST.md
-
-# Test files
-test_*.py
-test_*.html
-*_test.py
-
-# Development scripts (keep for local development)
-# start_*.py
-# start_*.bat
-# start_*.ps1

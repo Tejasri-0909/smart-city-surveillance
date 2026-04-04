@@ -1,23 +1,43 @@
 @echo off
 echo ========================================
-echo  Smart City AI Surveillance System
+echo  SMART CITY SURVEILLANCE SYSTEM
+echo  Starting servers...
+echo ========================================
+
+echo.
+echo [1/2] Starting Backend Server...
+start "Backend Server" cmd /k "cd backend && uvicorn app:app --host 0.0.0.0 --port 8000 --reload"
+
+echo.
+echo [2/2] Starting Frontend Server...
+start "Frontend Server" cmd /k "cd frontend && npm run dev"
+
+echo.
+echo ========================================
+echo  SERVERS STARTING...
 echo ========================================
 echo.
-echo Starting both Backend and Frontend servers...
+echo Backend will be available at: http://localhost:8000
+echo Frontend will be available at: http://localhost:5173/
 echo.
-echo Backend: http://localhost:8000
-echo Frontend: http://localhost:5173
+echo Wait 10-15 seconds for servers to fully initialize...
+echo Then open: http://localhost:5173/
 echo.
-echo Close this window to stop both servers
-echo.
+echo Press any key to open the application in browser...
+pause >nul
 
-start "Backend Server" cmd /k start_backend.bat
-timeout /t 5 /nobreak > nul
-start "Frontend Server" cmd /k start_frontend.bat
+start http://localhost:5173/
 
 echo.
-echo Both servers are starting...
-echo Wait for both servers to be ready, then open:
-echo http://localhost:5173
+echo ========================================
+echo  SYSTEM READY!
+echo ========================================
 echo.
-pause
+echo Enhanced Features Active:
+echo - Traffic Detection: traffic.mp4 shows "Heavy Traffic"
+echo - Toy Gun Safety: toy_gun.mp4 shows "Safe"  
+echo - Single Event Detection: 1 detection per event
+echo - Professional UI: Clean detection results
+echo.
+echo Press any key to exit...
+pause >nul

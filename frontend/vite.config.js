@@ -39,14 +39,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
-    hmr: {
-      overlay: false
-    },
-    watch: {
-      usePolling: false,
-      ignored: ['**/node_modules/**', '**/.git/**']
-    }
+    host: true
   },
   preview: {
     port: 4173,
