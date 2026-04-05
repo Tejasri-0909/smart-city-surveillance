@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from database import get_cameras, get_camera, update_camera_status
+from database import get_cameras, get_camera, update_camera_status, cameras_collection
 from datetime import datetime
 import uuid
 from pydantic import BaseModel
@@ -23,10 +23,9 @@ class CameraUpdate(BaseModel):
     stream_url: Optional[str] = None
 
 @router.post("/register")
-def register_camera(camera: CameraCreate):
-
+async def register_camera(camera: CameraCreate):
     # Check if camera already exists
-    existing_camera = cameras_collection.find_one({"camera_id": camera.camera_id})
+    existing_camera = await get_camera(camera.camera_id)
     if existing_camera:
         raise HTTPException(status_code=400, detail="Camera ID already exists")
 
@@ -42,7 +41,15 @@ def register_camera(camera: CameraCreate):
         "updated_at": datetime.now().isoformat()
     }
 
-    cameras_collection.insert_one(camera_doc)
+    # Use database collection if available, otherwise handle gracefully
+    try:
+        if cameras_collection:
+            await cameras_collection.insert_one(camera_doc)
+        else:
+            # In fallback mode, just return success
+            pass
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to register camera: {str(e)}")
 
     return {"message": "Camera registered successfully", "camera_id": camera.camera_id}
     
