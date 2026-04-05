@@ -300,9 +300,10 @@ async def status():
 # Deployment entry point
 if __name__ == "__main__":
     import uvicorn
+    import os
     
-    # Get port from environment (Railway/Render sets this)
-    port = int(os.environ.get("PORT", 8000))
+    # Get port from environment (Render sets this automatically)
+    port = int(os.environ.get("PORT", 10000))
     
     # Run the application
     uvicorn.run(
@@ -310,5 +311,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         log_level="info",
-        reload=False
+        reload=False  # Disable reload for production
     )
